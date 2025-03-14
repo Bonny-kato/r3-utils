@@ -1,0 +1,56 @@
+{
+  "name": "r3-utils",
+  "version": "1.0.0",
+  "description": "A library of reusable hooks, utilities, and components for React Router v7",
+  "type": "module",
+  "main": "dist/r3-utils.umd.js",
+  "module": "dist/r3-utils.es.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "rimraf dist && tsc -p tsconfig.dts.json && tsc-alias -p tsconfig.dts.json && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "react",
+    "react-router",
+    "hooks",
+    "utilities",
+    "components",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.5.2",
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@typescript-eslint/eslint-plugin": "^8.26.1",
+    "@typescript-eslint/parser": "^8.26.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "prettier": "^3.5.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.3.0",
+    "rimraf": "^6.0.1",
+    "tsc-alias": "^1.8.11",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2"
+  }
+}
