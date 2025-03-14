@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@bonny-kato/localstorage':
+        specifier: ^0.0.2
+        version: 0.0.2
     devDependencies:
       '@eslint/js':
         specifier: ^9.22.0
@@ -150,6 +154,9 @@ packages:
   '@babel/types@7.26.10':
     resolution: {integrity: sha512-emqcG3vHrpxUKTrxcblR36dcrcoRDvKmnL/dCL6ZsHaShW80qxCAcNhzQZrpeM765VzEos+xOi4s+r4IXzTwdQ==}
     engines: {node: '>=6.9.0'}
+
+  '@bonny-kato/localstorage@0.0.2':
+    resolution: {integrity: sha512-nUNzGxvuArRhPQAQGCzuaGwyaxshWQ3TTERHT1WkoYW8b7G7CNJsbqX0iOqL/0Yv7JT6pOvvJ3INyV6xrtd6lA==}
 
   '@esbuild/aix-ppc64@0.25.1':
     resolution: {integrity: sha512-kfYGy8IdzTGy+z0vFGvExZtxkFlA4zAxgKEahG9KE1ScBjpQnFsNOX8KTU5ojNru5ed5CVoJYXFtoxaq5nFbjQ==}
@@ -1813,6 +1820,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.25.9
       '@babel/helper-validator-identifier': 7.25.9
+
+  '@bonny-kato/localstorage@0.0.2': {}
 
   '@esbuild/aix-ppc64@0.25.1':
     optional: true

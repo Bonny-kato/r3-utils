@@ -8,10 +8,9 @@
   "files": [
     "dist"
   ],
-
   "scripts": {
     "dev": "vite",
-    "build": "rimraf dist && vite build && tsc -p tsconfig.dts.json --listEmittedFiles && tsc-alias -p tsconfig.dts.json",
+    "build": "rimraf dist && vite build && tsc -p tsconfig.dts.json --listEmittedFiles",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -24,7 +23,6 @@
     "components",
     "typescript"
   ],
-
   "author": "",
   "license": "MIT",
   "packageManager": "pnpm@10.5.2",
@@ -53,5 +51,8 @@
     "tsc-alias": "^1.8.11",
     "typescript": "^5.8.2",
     "vite": "^6.2.2"
+  },
+  "dependencies": {
+    "@bonny-kato/localstorage": "^0.0.2"
   }
 }

@@ -1,1 +1,1 @@
-export * from './useQueryParams';
+export { useEventListener } from './useEventListener';
