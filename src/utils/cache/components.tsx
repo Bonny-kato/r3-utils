@@ -1,4 +1,3 @@
-import { CacheClient, type CacheEntryType } from "./cache-client";
 import {
     createContext,
     type FC,
@@ -9,13 +8,11 @@ import {
     useMemo,
     useRef,
     useState,
-} from "react";
-import { type LoaderFunction, useFetcher, useLocation } from "react-router";
-import {
-    unwrapNestedPromise,
-    type UnwrapNestedPromise,
-} from "./unwrap-nested-promise";
-import { useEventListener } from "../../hooks/useEventListener";
+} from 'react';
+import { type LoaderFunction, useFetcher } from 'react-router';
+import { useEventListener } from '../../hooks/useEventListener';
+import { CacheClient, type CacheEntryType } from './cache-client';
+import { unwrapNestedPromise, type UnwrapNestedPromise } from './unwrap-nested-promise';
 
 ////////////////////////////////////////////////////////////////////////////////
 //#region useFetch hook
@@ -26,9 +23,7 @@ import { useEventListener } from "../../hooks/useEventListener";
  *
  * @template T - The loader function type
  */
-export type LoaderFuncReturnType<T extends LoaderFunction> = Awaited<
-    ReturnType<T>
->;
+export type LoaderFuncReturnType<T extends LoaderFunction> = Awaited<ReturnType<T>>;
 
 /**
  * Return type of the useFetch hook
@@ -52,7 +47,7 @@ export interface FetchOptions {
      * The URL to fetch data from. If not provided, it will use the current location pathname
      * @default currentLocation.pathname
      */
-    resource?: string;
+    resource: string;
     /**
      * Control when to run fetch data
      * @default true
@@ -89,7 +84,7 @@ export interface FetchOptions {
 /**
  * A version of FetchOptions without the resource property
  */
-export type FetchOptionsWithoutResource = Omit<FetchOptions, "resource">;
+export type FetchOptionsWithoutResource = Omit<FetchOptions, 'resource'>;
 
 /**
  * A hook for fetching and caching data from a resource.
@@ -121,28 +116,22 @@ export type FetchOptionsWithoutResource = Omit<FetchOptions, "resource">;
  *   fetchOnFocus: false
  * });
  */
-export const useFetch = <T extends LoaderFunction>(
-    options?: FetchOptions
-): UseCachedFetcher<T> => {
+export const useFetch = <T extends LoaderFunction>(options: FetchOptions): UseCachedFetcher<T> => {
     type LoaderData = LoaderFuncReturnType<T>;
 
-    const currentLocation = useLocation();
     const $cache = useCacheClient();
 
-    const resourceToFetchFrom = useMemo(() => {
-        return options?.resource ?? currentLocation.pathname;
-    }, [options?.resource]);
+    const resourceToFetchFrom = options.resource;
 
     const cacheKeyToUse = useMemo(() => {
         return options?.cacheKey ?? resourceToFetchFrom;
     }, [options?.cacheKey, resourceToFetchFrom]);
 
-    const cachedData =
-        $cache.get<UnwrapNestedPromise<LoaderData>>(cacheKeyToUse);
+    const cachedData = $cache.get<UnwrapNestedPromise<LoaderData>>(cacheKeyToUse);
 
-    const [data, setData] = useState<
-        UnwrapNestedPromise<LoaderData> | undefined
-    >(() => cachedData?.data);
+    const [data, setData] = useState<UnwrapNestedPromise<LoaderData> | undefined>(
+        () => cachedData?.data
+    );
 
     const [error, setError] = useState<unknown>(null);
     const [isFetching, setIsFetching] = useState(false);
@@ -254,12 +243,12 @@ export const useFetch = <T extends LoaderFunction>(
     //#region Events listeners
     ////////////////////////////////////////////////////////////////////////////////
 
-    useEventListener("focus", () => fetchDataFromServer(), {
+    useEventListener('focus', () => fetchDataFromServer(), {
         disabled: !(options?.fetchOnFocus ?? true) || isLoading,
     });
 
     useEventListener(
-        "online",
+        'online',
         async () => {
             setIsLoading(true);
             await fetchDataFromServer(true);
@@ -354,7 +343,7 @@ const CacheContext = createContext<CacheContextType | null>(null);
 export const useCacheClient = () => {
     const context = useContext(CacheContext);
     if (!context) {
-        throw new Error("useCacheClient must be used within a CacheProvider");
+        throw new Error('useCacheClient must be used within a CacheProvider');
     }
     return context.$cache;
 };
@@ -418,9 +407,7 @@ export const CacheProvider: FC<CacheProviderProps> = ({
     }, []);
 
     return (
-        <CacheContext.Provider value={{ $cache: cacheClient }}>
-            {children}
-        </CacheContext.Provider>
+        <CacheContext.Provider value={{ $cache: cacheClient }}>{children}</CacheContext.Provider>
     );
 };
 
