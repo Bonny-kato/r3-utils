@@ -1,0 +1,23 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2023-11-15
+
+### Added
+- Initial release of r3-utils
+- Auth module for authentication management
+- Cache module for data caching
+- Access Control module for managing user permissions
+- Hooks module with various React hooks for React Router
+- HTTP Client module for making API requests
+- Utils module with helper functions
+- Zod Common module with Zod schemas
+- Constants module
+
+### Requirements
+- Requires React Router v7.3.0 or higher
+- Compatible with React v19.0.0

@@ -16,7 +16,10 @@ export default defineConfig({
             entry: {
                 auth: resolve(__dirname, "src/auth/index.ts"),
                 cache: resolve(__dirname, "src/cache/index.ts"),
-                "access-control": resolve(__dirname, "src/access-control/index.ts"),
+                "access-control": resolve(
+                    __dirname,
+                    "src/access-control/index.ts"
+                ),
                 hooks: resolve(__dirname, "src/hooks/index.ts"),
                 "http-client": resolve(__dirname, "src/http-client/index.ts"),
                 utils: resolve(__dirname, "src/utils/index.ts"),
@@ -50,11 +53,12 @@ export default defineConfig({
                 ...builtinModules,
             ],
             output: {
-                sourcemap: true,
                 preserveModules: true,
                 preserveModulesRoot: "src",
                 entryFileNames: (chunkInfo) => {
-                    return chunkInfo.name.includes("/") ? "[name].js" : "[name]/index.js";
+                    return chunkInfo.name.includes("/")
+                        ? "[name].js"
+                        : "[name]/index.js";
                 },
                 // Ensure external dependencies are correctly referenced
                 globals: {
