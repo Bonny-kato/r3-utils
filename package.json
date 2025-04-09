@@ -48,7 +48,20 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "publish": "npm publish --access public"
+    "publish": "npm publish --access public",
+    "release": "standard-version",
+    "prepare": "husky",
+    "typecheck": "tsc",
+    "lint-staged": "npx lint-staged",
+    "release:patch": "standard-version --release-as patch",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:alpha": "standard-version --prerelease alpha",
+    "release:beta": "standard-version --prerelease beta",
+    "publish:latest": "npm publish --access public",
+    "publish:next": "npm publish --access public --tag next",
+    "publish:alpha": "npm publish --access public --tag alpha",
+    "publish:beta": "npm publish --access public --tag beta"
   },
   "keywords": [
     "react",
@@ -58,7 +71,15 @@
     "components",
     "typescript"
   ],
-  "author": "",
+  "author": "Bonny Kato",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bonny-kato/r3-utils.git"
+  },
+  "homepage": "https://github.com/Bonny-kato/r3-utils#readme",
+  "bugs": {
+    "url": "https://github.com/Bonny-kato/r3-utils/issues"
+  },
   "license": "MIT",
   "packageManager": "pnpm@10.5.2",
   "peerDependencies": {
@@ -72,9 +93,15 @@
     "react-router": "^7.3.0",
     "zod": "^3.24.2"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@bonny-kato/localstorage": "^0.0.2",
     "@bonnykato/simple-db": "^1.0.10",
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "@commitlint/types": "^19.8.0",
     "@eslint/js": "^9.22.0",
     "@types/node": "^22.13.10",
     "@types/react": "^19.0.10",
@@ -88,6 +115,8 @@
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.2.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.0",
     "prettier": "^3.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -95,6 +124,7 @@
     "react-router": "^7.3.0",
     "remix-toast": "^2.0.0",
     "rimraf": "^6.0.1",
+    "standard-version": "^9.5.0",
     "tsc-alias": "^1.8.11",
     "typescript": "^5.8.2",
     "vite": "^6.2.2",
@@ -102,5 +132,11 @@
   },
   "dependencies": {
     "ioredis": "^5.6.0"
+  },
+  "lint-staged": {
+    "src/**/*.+(js|ts|tsx|jsx|json)": [
+      "eslint",
+      "prettier --write"
+    ]
   }
 }
