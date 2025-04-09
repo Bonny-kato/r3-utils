@@ -1,6 +1,6 @@
 {
-  "name": "@bonny-kato/r3-utils",
-  "version": "0.0.3",
+  "name": "r3-utils",
+  "version": "1.0.0",
   "description": "A library of reusable hooks, utilities, and components for React Router v7",
   "type": "module",
   "main": "dist/r3-utils.js",
@@ -53,15 +53,14 @@
     "prepare": "husky",
     "typecheck": "tsc",
     "lint-staged": "npx lint-staged",
-    "release:patch": "standard-version --release-as patch",
-    "release:minor": "standard-version --release-as minor",
-    "release:major": "standard-version --release-as major",
-    "release:alpha": "standard-version --prerelease alpha",
-    "release:beta": "standard-version --prerelease beta",
-    "publish:latest": "npm publish --access public",
-    "publish:next": "npm publish --access public --tag next",
-    "publish:alpha": "npm publish --access public --tag alpha",
-    "publish:beta": "npm publish --access public --tag beta"
+
+    "prepublishOnly": "pnpm run lint && pnpm run test",
+    "release:patch": "npm version patch && npm run build && pnpm publish --access public && git push --follow-tags",
+    "release:minor": "npm version minor && npm run build && pnpm publish --access public && git push --follow-tags",
+    "release:major": "npm version major && npm run build && pnpm publish --access public && git push --follow-tags",
+    "release:alpha": "npm version prepatch --preid alpha && pnpm run build && npm publish --access public --tag alpha && git push --follow-tags",
+    "release:beta": "npm version prepatch --preid beta && pnpm run build && npm publish --access public --tag beta && git push --follow-tags"
+
   },
   "keywords": [
     "react",
