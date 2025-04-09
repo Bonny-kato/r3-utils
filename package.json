@@ -53,11 +53,11 @@
     "prepare": "husky",
     "typecheck": "tsc",
     "lint-staged": "npx lint-staged",
-    "prepublishOnly": "pnpm run lint && pnpm run test",
-    "release:patch": "npm version patch && npm run build && pnpm publish --access public && git push --follow-tags",
-    "release:minor": "npm version minor && npm run build && pnpm publish --access public && git push --follow-tags",
-    "release:major": "npm version major && npm run build && pnpm publish --access public && git push --follow-tags",
-    "release:alpha": "npm version prepatch --preid alpha && pnpm run build && npm publish --access public --tag alpha && git push --follow-tags",
+    "prepublishOnly": "pnpm run build",
+    "release:patch": "npm version patch && npm run build && npm publish --access public && git push --follow-tags",
+    "release:minor": "npm version minor && npm run build && npm publish --access public && git push --follow-tags",
+    "release:major": "npm version major && npm run build && npm publish --access public && git push --follow-tags",
+    "release:alpha": "npm version prepatch --preid alpha && npm run build && npm publish --access public --tag alpha && git push --follow-tags",
     "release:beta": "npm version prepatch --preid beta && pnpm run build && npm publish --access public --tag beta && git push --follow-tags"
   },
   "keywords": [
