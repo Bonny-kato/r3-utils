@@ -1,11 +1,8 @@
-import {
-    type CacheAdapter,
-    InMemoryCacheAdapter,
-} from "./adapters";
+import { type CacheAdapter, InMemoryCacheAdapter } from "./adapters";
 
 /**
  * Represents a cache entry with data and metadata.
- * 
+ *
  * @template TData - The type of data stored in the cache entry
  * @property {TData} data - The actual data stored in the cache
  * @property {number} [expiry] - Optional timestamp when the entry expires
@@ -22,19 +19,19 @@ export interface CacheEntryType<TData = unknown> {
 /**
  * Type for delete event names in the format "delete:keyName"
  */
-type DeleteEventName<T extends string = string> = `delete:${T}`;
+export type DeleteEventName<T extends string = string> = `delete:${T}`;
 /**
  * Type for update event names in the format "update:keyName"
  */
-type UpdateEventName<T extends string = string> = `update:${T}`;
+export type UpdateEventName<T extends string = string> = `update:${T}`;
 /**
  * Type for add event names in the format "add:keyName"
  */
-type AddEventName<T extends string = string> = `add:${T}`;
+export type AddEventName<T extends string = string> = `add:${T}`;
 /**
  * Type for invalidate event names in the format "invalidate:keyName"
  */
-type InvalidateEventName<T extends string = string> = `invalidate:${T}`;
+export type InvalidateEventName<T extends string = string> = `invalidate:${T}`;
 
 /**
  * Array of all possible cache actions
@@ -43,11 +40,11 @@ const actions = ["delete", "update", "add", "invalidate"] as const;
 /**
  * Union type of all possible cache actions
  */
-type CacheActions = (typeof actions)[number];
+export type CacheActions = (typeof actions)[number];
 
 /**
  * Union type for all event names used in the cache system
- * 
+ *
  * @template T - The base string type for the event name
  */
 export type EventName<T extends string = string> =
@@ -58,26 +55,26 @@ export type EventName<T extends string = string> =
 
 /**
  * Main cache client that manages cache entries and their lifecycle.
- * 
+ *
  * The CacheClient provides methods for storing, retrieving, and managing cached data.
  * It supports different storage adapters and includes features like:
  * - Automatic expiration of cache entries
  * - Event-based notifications for cache operations
  * - Observer pattern for tracking cache usage
- * 
+ *
  * @template TData - The type of data stored in the cache
- * 
+ *
  * @example
  * // Create a new cache client with the default in-memory adapter
  * const cache = new CacheClient();
- * 
+ *
  * // Set a cache entry
- * cache.set('user-123', { 
- *   data: { name: 'John', age: 30 }, 
- *   key: 'user-123', 
- *   ttl: 60000 
+ * cache.set('user-123', {
+ *   data: { name: 'John', age: 30 },
+ *   key: 'user-123',
+ *   ttl: 60000
  * });
- * 
+ *
  * // Get a cache entry
  * const user = cache.get('user-123');
  */
@@ -144,12 +141,12 @@ export class CacheClient<TData = unknown> {
 
     /**
      * Adds an observer for a specific cache key.
-     * 
+     *
      * When a key is being observed, its cache entry won't be removed during garbage collection
      * even if it has expired. This is useful for components that are actively using the cached data.
-     * 
+     *
      * @param key The cache key to observe
-     * 
+     *
      * @example
      * // Start observing a cache key
      * cache.addObserver('user-profile');
@@ -160,12 +157,12 @@ export class CacheClient<TData = unknown> {
 
     /**
      * Removes an observer for a specific cache key.
-     * 
+     *
      * Once a key is no longer being observed and its entry has expired,
      * it will be removed during the next garbage collection cycle.
-     * 
+     *
      * @param key The cache key to stop observing
-     * 
+     *
      * @example
      * // Stop observing a cache key
      * cache.removeObserver('user-profile');
@@ -176,7 +173,7 @@ export class CacheClient<TData = unknown> {
 
     /**
      * Cleans up expired cache entries.
-     * 
+     *
      * This method is automatically called at regular intervals when using the CacheProvider.
      * It removes any expired entries that are not being observed.
      */
@@ -190,13 +187,13 @@ export class CacheClient<TData = unknown> {
 
     /**
      * Dispatches an invalidate event for a specific cache key.
-     * 
+     *
      * This method can be used to manually invalidate a cache entry, which will
      * notify any components that are listening for invalidation events on this key.
      * It doesn't remove the entry from the cache, but signals that it should be refreshed.
-     * 
+     *
      * @param key The cache key to invalidate
-     * 
+     *
      * @example
      * // Invalidate a cache entry
      * cache.dispatchInvalidateEvent('user-profile');
@@ -221,10 +218,7 @@ export class CacheClient<TData = unknown> {
      * @returns True if the entry has expired, otherwise false.
      */
     private hasExpired(entry: CacheEntryType<TData>): boolean {
-        return (
-            Number(entry.expiry) <= Date.now() &&
-            !this.#observers.has(entry.key)
-        );
+        return Number(entry.expiry) <= Date.now() && !this.#observers.has(entry.key);
     }
 
     /**
@@ -233,10 +227,7 @@ export class CacheClient<TData = unknown> {
      * @param data Optional data to include with the event.
      * @returns The created custom event.
      */
-    private createEvent(
-        eventName: EventName,
-        data?: unknown
-    ): CustomEvent<unknown> {
+    private createEvent(eventName: EventName, data?: unknown): CustomEvent<unknown> {
         return new CustomEvent(eventName, { detail: data });
     }
 

@@ -1,18 +1,18 @@
-import { type CacheEntryType } from "./cache-client";
-import { ExtendedLocalStorage as LocalStorage } from "../local-storage";
+import { type CacheEntryType } from './cache-client';
+import { ExtendedLocalStorage as LocalStorage } from '../utils/local-storage';
 
 /**
  * Interface for cache adapters that provide storage functionality for the cache system.
- * 
+ *
  * Cache adapters abstract the storage mechanism used by the cache client,
  * allowing different storage backends to be used interchangeably.
- * 
+ *
  * @template TData - The type of data stored in the cache
  */
 export interface CacheAdapter<TData = unknown> {
     /**
      * Checks if an entry exists in the cache
-     * 
+     *
      * @param {string} queryHash - The key to check
      * @returns {boolean} True if the entry exists, false otherwise
      */
@@ -20,7 +20,7 @@ export interface CacheAdapter<TData = unknown> {
 
     /**
      * Stores an entry in the cache
-     * 
+     *
      * @param {string} queryHash - The key to store the entry under
      * @param {CacheEntryType<TData>} query - The cache entry to store
      */
@@ -28,7 +28,7 @@ export interface CacheAdapter<TData = unknown> {
 
     /**
      * Retrieves an entry from the cache
-     * 
+     *
      * @param {string} queryHash - The key to retrieve
      * @returns {CacheEntryType<TData> | undefined} The cache entry if found, undefined otherwise
      */
@@ -36,14 +36,14 @@ export interface CacheAdapter<TData = unknown> {
 
     /**
      * Deletes an entry from the cache
-     * 
+     *
      * @param {string} queryHash - The key to delete
      */
     delete: (queryHash: string) => void;
 
     /**
      * Returns an iterator over all values in the cache
-     * 
+     *
      * @returns {IterableIterator<CacheEntryType<TData>>} Iterator over all cache entries
      */
     values: () => IterableIterator<CacheEntryType<TData>>;
@@ -51,22 +51,20 @@ export interface CacheAdapter<TData = unknown> {
 
 /**
  * In-memory implementation of the CacheAdapter interface.
- * 
+ *
  * This adapter stores cache entries in memory using a JavaScript Map.
  * It's fast and simple, but data is lost when the page is refreshed or the app is closed.
- * 
+ *
  * @template TData - The type of data stored in the cache
- * 
+ *
  * @example
  * // Create a new in-memory cache adapter
  * const adapter = new InMemoryCacheAdapter();
- * 
+ *
  * // Use it with a cache client
  * const cacheClient = new CacheClient(adapter);
  */
-export class InMemoryCacheAdapter<TData = unknown>
-    implements CacheAdapter<TData>
-{
+export class InMemoryCacheAdapter<TData = unknown> implements CacheAdapter<TData> {
     /**
      * Internal Map used to store cache entries
      */
@@ -74,7 +72,7 @@ export class InMemoryCacheAdapter<TData = unknown>
 
     /**
      * Checks if an entry exists in the cache
-     * 
+     *
      * @param {string} queryHash - The key to check
      * @returns {boolean} True if the entry exists, false otherwise
      */
@@ -84,7 +82,7 @@ export class InMemoryCacheAdapter<TData = unknown>
 
     /**
      * Stores an entry in the cache
-     * 
+     *
      * @param {string} queryHash - The key to store the entry under
      * @param {CacheEntryType<TData>} query - The cache entry to store
      */
@@ -94,7 +92,7 @@ export class InMemoryCacheAdapter<TData = unknown>
 
     /**
      * Retrieves an entry from the cache
-     * 
+     *
      * @param {string} queryHash - The key to retrieve
      * @returns {CacheEntryType<TData> | undefined} The cache entry if found, undefined otherwise
      */
@@ -104,7 +102,7 @@ export class InMemoryCacheAdapter<TData = unknown>
 
     /**
      * Deletes an entry from the cache
-     * 
+     *
      * @param {string} queryHash - The key to delete
      */
     delete(queryHash: string): void {
@@ -113,7 +111,7 @@ export class InMemoryCacheAdapter<TData = unknown>
 
     /**
      * Returns an iterator over all values in the cache
-     * 
+     *
      * @returns {IterableIterator<CacheEntryType<TData>>} Iterator over all cache entries
      */
     values(): IterableIterator<CacheEntryType<TData>> {
@@ -123,26 +121,24 @@ export class InMemoryCacheAdapter<TData = unknown>
 
 /**
  * LocalStorage implementation of the CacheAdapter interface.
- * 
+ *
  * This adapter stores cache entries in the browser's localStorage,
  * allowing data to persist between page refreshes and browser sessions.
- * 
+ *
  * Note that localStorage has size limitations (typically 5-10MB) and
  * only supports string values, so serialization/deserialization is handled
  * by the underlying LocalStorage utility.
- * 
+ *
  * @template TData - The type of data stored in the cache
- * 
+ *
  * @example
  * // Create a new localStorage cache adapter
  * const adapter = new LocalStorageCacheAdapter('my-app-cache');
- * 
+ *
  * // Use it with a cache client
  * const cacheClient = new CacheClient(adapter);
  */
-export class LocalStorageCacheAdapter<TData = unknown>
-    implements CacheAdapter<TData>
-{
+export class LocalStorageCacheAdapter<TData = unknown> implements CacheAdapter<TData> {
     /**
      * Internal LocalStorage wrapper used to store cache entries
      */
@@ -150,7 +146,7 @@ export class LocalStorageCacheAdapter<TData = unknown>
 
     /**
      * Creates a new LocalStorageCacheAdapter
-     * 
+     *
      * @param {string} storageName - A unique name for this cache in localStorage
      */
     constructor(storageName: string) {
@@ -159,7 +155,7 @@ export class LocalStorageCacheAdapter<TData = unknown>
 
     /**
      * Deletes an entry from the cache
-     * 
+     *
      * @param {string} queryHash - The key to delete
      */
     delete(queryHash: string): void {
@@ -168,7 +164,7 @@ export class LocalStorageCacheAdapter<TData = unknown>
 
     /**
      * Retrieves an entry from the cache
-     * 
+     *
      * @param {string} queryHash - The key to retrieve
      * @returns {CacheEntryType<TData> | undefined} The cache entry if found, undefined otherwise
      */
@@ -178,7 +174,7 @@ export class LocalStorageCacheAdapter<TData = unknown>
 
     /**
      * Checks if an entry exists in the cache
-     * 
+     *
      * @param {string} queryHash - The key to check
      * @returns {boolean} True if the entry exists, false otherwise
      */
@@ -188,7 +184,7 @@ export class LocalStorageCacheAdapter<TData = unknown>
 
     /**
      * Stores an entry in the cache
-     * 
+     *
      * @param {string} cacheKey - The key to store the entry under
      * @param {CacheEntryType<TData>} query - The cache entry to store
      */
@@ -198,7 +194,7 @@ export class LocalStorageCacheAdapter<TData = unknown>
 
     /**
      * Returns an iterator over all values in the cache
-     * 
+     *
      * @returns {IterableIterator<CacheEntryType<TData>>} Iterator over all cache entries
      */
     values(): IterableIterator<CacheEntryType<TData>> {
