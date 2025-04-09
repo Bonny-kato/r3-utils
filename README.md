@@ -26,6 +26,8 @@ Make sure you have the required peer dependencies installed:
 pnpm add react react-dom react-router zod dayjs @bonny-kato/localstorage @bonnykato/simple-db
 ```
 
+And if you are using `RedisStorageAdapter` make sure `ioredis` package is installed
+
 ## Features
 
 - 🪝 **Hooks**: Custom React hooks for working with React Router and common web application patterns
