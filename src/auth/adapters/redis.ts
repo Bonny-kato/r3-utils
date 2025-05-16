@@ -1,5 +1,9 @@
 import Redis, { type RedisOptions } from "ioredis";
-import { AuthStorageAdapter, UserId, UserIdentifier } from "../auth-storage-adpter";
+import {
+    AuthStorageAdapter,
+    UserId,
+    UserIdentifier,
+} from "../auth-storage-adpter";
 
 /**
  * Redis-based implementation of the AuthStorageAdapter interface.
@@ -11,7 +15,9 @@ import { AuthStorageAdapter, UserId, UserIdentifier } from "../auth-storage-adpt
  *
  * @template User - The user type that extends UserIdentifier
  */
-export class RedisStorageAdapter<User extends UserIdentifier> implements AuthStorageAdapter<User> {
+export class RedisStorageAdapter<User extends UserIdentifier>
+    implements AuthStorageAdapter<User>
+{
     /**
      * The Redis client instance used for data storage operations.
      */

@@ -3,82 +3,86 @@ const TRILLION = 1_000_000_000_000;
 const BILLION = 1_000_000_000;
 const MILLION = 1_000_000;
 
-export enum CurrencyVisibility {
-    HIDE,
-    SHOW,
-}
-
-export enum AbbreviationVisibility {
-    HIDE,
-    SHOW,
-}
-
 interface FormatOptions {
-    decimals: number;
-    showAbbreviation: AbbreviationVisibility;
+    /** Currency code (e.g. "TZS", "USD") */
+    currency?: string;
+    /** Locale string (e.g. "en-US") */
+    locale?: string;
+    /** Maximum number of decimal places to display */
+    maximumFractionDigits?: number;
+    /** Minimum number of decimal places to display */
+    minimumFractionDigits?: number;
+    /** Whether to abbreviate large numbers (e.g. 1M, 1B) */
+    showAbbreviation?: boolean;
+    /** Whether to show currency symbol/code */
+    showCurrency?: boolean;
 }
 
 /**
- * Formats a given monetary amount into a human-readable string with currency
- * notation and appropriate abbreviations for large values (quadrillions, trillions,
- * billions, and millions), or as a regular number when abbreviation is hidden.
+ * Formats a number as a currency amount with optional abbreviation
  *
- * @param {number} [amount] - The monetary amount to format. If undefined, the default
- * value of 0 is used.
- * @param {CurrencyVisibility} [showCurrency=CurrencyVisibility.SHOW] - Determines whether
- * to show the currency symbol in the formatted string.
- * @param {FormatOptions} [options] - An object containing options for formatting:
- * - decimals: The number of decimal places to show. Default is 0.
- * - showAbbreviation: Determines whether to use abbreviations for large numbers (M, B, T, Q) or not.
+ * @param amount - The number to format
+ * @param options - Formatting options
+ * @returns Formatted string with currency and/or abbreviation
  *
- * @returns {string} The formatted monetary amount as a string, with currency notation and
- * appropriate abbreviations if the value is in the millions or higher.
+ * @example
+ * // Basic usage
+ * formatAmount(1234.56) // Returns "TZS 1,235"
+ *
+ * // With abbreviation
+ * formatAmount(1234567) // Returns "TZS 1 M"
+ *
+ * // Custom currency and locale
+ * formatAmount(1234.56, {
+ *   currency: "USD",
+ *   locale: "en-GB",
+ *   showAbbreviation: false
+ * }) // Returns "US$ 1,235"
+ *
+ * // With decimal places
+ * formatAmount(1234.56, {
+ *   minimumFractionDigits: 2,
+ *   maximumFractionDigits: 2
+ * }) // Returns "TZS 1,234.56"
  */
 export const formatAmount = (
     amount?: number,
-    showCurrency: CurrencyVisibility = CurrencyVisibility.SHOW,
-    options: FormatOptions = {
-        decimals: 0,
-        showAbbreviation: AbbreviationVisibility.SHOW,
-    }
+    options: FormatOptions = {}
 ): string => {
-    if (amount === undefined) {
-        amount = 0;
-    }
+    const {
+        currency = "TZS",
+        locale = "en-US",
+        maximumFractionDigits = 0,
+        minimumFractionDigits = 0,
+        showAbbreviation = true,
+        showCurrency = true,
+    } = options;
 
-    const { decimals, showAbbreviation } = options;
+    const value = amount ?? 0;
 
-    let formattedPrice: string;
-    const formatter = new Intl.NumberFormat("en-us", {
-        ...(showCurrency === CurrencyVisibility.SHOW && {
+    const formatter = new Intl.NumberFormat(locale, {
+        ...(showCurrency && {
             style: "currency",
-            currency: "TZS",
+            currency,
         }),
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
+        minimumFractionDigits,
+        maximumFractionDigits,
     });
 
-    if (showAbbreviation === AbbreviationVisibility.SHOW) {
-        if (amount >= QUADRILLION) {
-            // Format as quadrillions
-            formattedPrice = formatter.format(amount / QUADRILLION) + " Q";
-        } else if (amount >= TRILLION) {
-            // Format as trillions
-            formattedPrice = formatter.format(amount / TRILLION) + " T";
-        } else if (amount >= BILLION) {
-            // Format as billions
-            formattedPrice = formatter.format(amount / BILLION) + " B";
-        } else if (amount >= MILLION) {
-            // Format as millions
-            formattedPrice = formatter.format(amount / MILLION) + " M";
-        } else {
-            // Format normally
-            formattedPrice = formatter.format(amount);
+    if (showAbbreviation) {
+        if (value >= QUADRILLION) {
+            return formatter.format(value / QUADRILLION) + " Q";
         }
-    } else {
-        // If the abbreviation is hidden, format the number normally (without abbreviation)
-        formattedPrice = formatter.format(amount);
+        if (value >= TRILLION) {
+            return formatter.format(value / TRILLION) + " T";
+        }
+        if (value >= BILLION) {
+            return formatter.format(value / BILLION) + " B";
+        }
+        if (value >= MILLION) {
+            return formatter.format(value / MILLION) + " M";
+        }
     }
 
-    return formattedPrice;
+    return formatter.format(value);
 };

@@ -218,7 +218,10 @@ export class CacheClient<TData = unknown> {
      * @returns True if the entry has expired, otherwise false.
      */
     private hasExpired(entry: CacheEntryType<TData>): boolean {
-        return Number(entry.expiry) <= Date.now() && !this.#observers.has(entry.key);
+        return (
+            Number(entry.expiry) <= Date.now() &&
+            !this.#observers.has(entry.key)
+        );
     }
 
     /**
@@ -227,7 +230,10 @@ export class CacheClient<TData = unknown> {
      * @param data Optional data to include with the event.
      * @returns The created custom event.
      */
-    private createEvent(eventName: EventName, data?: unknown): CustomEvent<unknown> {
+    private createEvent(
+        eventName: EventName,
+        data?: unknown
+    ): CustomEvent<unknown> {
         return new CustomEvent(eventName, { detail: data });
     }
 
@@ -248,5 +254,17 @@ export class CacheClient<TData = unknown> {
      */
     private removeEvent(entryKey: string): void {
         this.#events.delete(this.createEventKey("delete", entryKey));
+    }
+
+    /**
+     * Clears all entries from the collection by iterating over its adapter values
+     * and deleting each entry's key.
+     *
+     * @return Does not return a value.
+     */
+    clear() {
+        for (const entry of this.#adapter.values()) {
+            this.delete(entry.key);
+        }
     }
 }

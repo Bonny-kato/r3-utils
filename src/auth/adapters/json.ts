@@ -1,5 +1,9 @@
 import SimpleDB from "@bonnykato/simple-db";
-import { AuthStorageAdapter, UserId, UserIdentifier } from "../auth-storage-adpter";
+import {
+    AuthStorageAdapter,
+    UserId,
+    UserIdentifier,
+} from "../auth-storage-adpter";
 import { RedisStorageAdapter } from "./redis";
 
 /**
@@ -12,7 +16,9 @@ import { RedisStorageAdapter } from "./redis";
  *
  * @template User - The user type that extends UserIdentifier
  */
-export class JsonStorageAdapter<User extends UserIdentifier> implements AuthStorageAdapter<User> {
+export class JsonStorageAdapter<User extends UserIdentifier>
+    implements AuthStorageAdapter<User>
+{
     /**
      * The SimpleDB client instance used for data storage operations.
      * Stores user data in a file named 'db.json' in the project root.
@@ -25,7 +31,10 @@ export class JsonStorageAdapter<User extends UserIdentifier> implements AuthStor
      * @param collectionName - The name of the collection in the JSON file where user data will be stored
      */
     constructor(collectionName: string) {
-        this.dbClient = new SimpleDB<User & { id: string }>("db.json", collectionName);
+        this.dbClient = new SimpleDB<User & { id: string }>(
+            "db.json",
+            collectionName
+        );
     }
 
     /**
@@ -75,6 +84,11 @@ export class JsonStorageAdapter<User extends UserIdentifier> implements AuthStor
      * @returns A promise that resolves when the user has been created or updated
      */
     async set(userId: UserId, data: User): Promise<void> {
+        const existingUser = await this.dbClient.getByID(String(userId));
+
+        if (existingUser) {
+            await this.dbClient.delete(String(userId));
+        }
         await this.dbClient.create({
             ...data,
             id: String(userId),

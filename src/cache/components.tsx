@@ -8,11 +8,14 @@ import {
     useMemo,
     useRef,
     useState,
-} from 'react';
-import { type LoaderFunction, useFetcher } from 'react-router';
-import { CacheClient, type CacheEntryType } from './cache-client';
-import { unwrapNestedPromise, type UnwrapNestedPromise } from './unwrap-nested-promise';
-import { useEventListener } from '../hooks/useEventListener';
+} from "react";
+import { type LoaderFunction, useFetcher } from "react-router";
+import { useEventListener } from "../hooks";
+import { CacheClient, type CacheEntryType } from "./cache-client";
+import {
+    unwrapNestedPromise,
+    type UnwrapNestedPromise,
+} from "./unwrap-nested-promise";
 
 ////////////////////////////////////////////////////////////////////////////////
 //#region useFetch hook
@@ -23,7 +26,9 @@ import { useEventListener } from '../hooks/useEventListener';
  *
  * @template T - The loader function type
  */
-export type LoaderFuncReturnType<T extends LoaderFunction> = Awaited<ReturnType<T>>;
+export type LoaderFuncReturnType<T extends LoaderFunction> = Awaited<
+    ReturnType<T>
+>;
 
 /**
  * Return type of the useFetch hook
@@ -84,7 +89,7 @@ export interface FetchOptions {
 /**
  * A version of FetchOptions without the resource property
  */
-export type FetchOptionsWithoutResource = Omit<FetchOptions, 'resource'>;
+export type FetchOptionsWithoutResource = Omit<FetchOptions, "resource">;
 
 /**
  * A hook for fetching and caching data from a resource.
@@ -116,7 +121,9 @@ export type FetchOptionsWithoutResource = Omit<FetchOptions, 'resource'>;
  *   fetchOnFocus: false
  * });
  */
-export const useFetch = <T extends LoaderFunction>(options: FetchOptions): UseCachedFetcher<T> => {
+export const useFetch = <T extends LoaderFunction>(
+    options: FetchOptions
+): UseCachedFetcher<T> => {
     type LoaderData = LoaderFuncReturnType<T>;
 
     const $cache = useCacheClient();
@@ -127,11 +134,12 @@ export const useFetch = <T extends LoaderFunction>(options: FetchOptions): UseCa
         return options?.cacheKey ?? resourceToFetchFrom;
     }, [options?.cacheKey, resourceToFetchFrom]);
 
-    const cachedData = $cache.get<UnwrapNestedPromise<LoaderData>>(cacheKeyToUse);
+    const cachedData =
+        $cache.get<UnwrapNestedPromise<LoaderData>>(cacheKeyToUse);
 
-    const [data, setData] = useState<UnwrapNestedPromise<LoaderData> | undefined>(
-        () => cachedData?.data
-    );
+    const [data, setData] = useState<
+        UnwrapNestedPromise<LoaderData> | undefined
+    >(() => cachedData?.data);
 
     const [error, setError] = useState<unknown>(null);
     const [isFetching, setIsFetching] = useState(false);
@@ -243,12 +251,12 @@ export const useFetch = <T extends LoaderFunction>(options: FetchOptions): UseCa
     //#region Events listeners
     ////////////////////////////////////////////////////////////////////////////////
 
-    useEventListener('focus', () => fetchDataFromServer(), {
+    useEventListener("focus", () => fetchDataFromServer(), {
         disabled: !(options?.fetchOnFocus ?? true) || isLoading,
     });
 
     useEventListener(
-        'online',
+        "online",
         async () => {
             setIsLoading(true);
             await fetchDataFromServer(true);
@@ -343,7 +351,7 @@ const CacheContext = createContext<CacheContextType | null>(null);
 export const useCacheClient = () => {
     const context = useContext(CacheContext);
     if (!context) {
-        throw new Error('useCacheClient must be used within a CacheProvider');
+        throw new Error("useCacheClient must be used within a CacheProvider");
     }
     return context.$cache;
 };
@@ -394,20 +402,19 @@ export const CacheProvider: FC<CacheProviderProps> = ({
     const $gcIntervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
     useEffect(() => {
-        // Set up garbage collection interval
         $gcIntervalRef.current = setInterval(cacheClient.runGc, gcTime);
 
-        // Cleanup interval on unmounting
         return () => {
             if (!$gcIntervalRef.current) return;
             clearInterval($gcIntervalRef.current);
-
-            // Todo clear cached data when app is unmounted
+            cacheClient.clear();
         };
-    }, []);
+    }, [cacheClient, gcTime]);
 
     return (
-        <CacheContext.Provider value={{ $cache: cacheClient }}>{children}</CacheContext.Provider>
+        <CacheContext.Provider value={{ $cache: cacheClient }}>
+            {children}
+        </CacheContext.Provider>
     );
 };
 

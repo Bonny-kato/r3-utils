@@ -1,8 +1,25 @@
-import { createCookieSessionStorage, SessionIdStorageStrategy } from "react-router";
-import { safeRedirect } from "../utils";
-import { JsonStorageAdapter } from "./adapters/json";
-import { AuthStorageAdapter, UserId, UserIdentifier } from "./auth-storage-adpter";
+import {
+    createCookieSessionStorage,
+    Session,
+    SessionIdStorageStrategy,
+} from "react-router";
+import {
+    checkIsDevMode,
+    safeRedirect,
+    serializeQueryParams,
+    tryCatch,
+} from "../utils";
+import { JsonStorageAdapter } from "./adapters";
+import {
+    AuthStorageAdapter,
+    UserId,
+    UserIdentifier,
+} from "./auth-storage-adpter";
 
+const defaultCookieConfig: CookieSessionStorageOptions["cookie"] = {
+    httpOnly: true,
+    secure: !checkIsDevMode(),
+};
 /**
  * Options for cookie-based session storage.
  * Borrowed from React Router source code.
@@ -38,7 +55,9 @@ interface AuthOptions<User extends UserIdentifier> {
  */
 export class Auth<User extends UserIdentifier> {
     /** Session storage instance for managing cookies */
-    readonly sessionStorage: ReturnType<typeof createCookieSessionStorage<{ userId: UserId }>>;
+    readonly sessionStorage: ReturnType<
+        typeof createCookieSessionStorage<{ userId: UserId }>
+    >;
     #storageAdapter: AuthStorageAdapter<User>;
     /** URL path for the login page */
     readonly #loginPageUrl: string = "/login";
@@ -52,14 +71,16 @@ export class Auth<User extends UserIdentifier> {
      */
     constructor(options: AuthOptions<User>) {
         this.sessionStorage = createCookieSessionStorage<{ userId: UserId }>({
-            cookie: options.cookie,
+            cookie: { ...defaultCookieConfig, ...options.cookie },
         });
         this.#loginPageUrl = options.loginPageUrl ?? this.#loginPageUrl;
         this.#logoutPageUrl = options.logoutPageUrl ?? this.#logoutPageUrl;
 
         this.#storageAdapter =
             options.storageAdapter ??
-            new JsonStorageAdapter<User>(options?.collectionName ?? "auth_users");
+            new JsonStorageAdapter<User>(
+                options?.collectionName ?? "auth_users"
+            );
     }
 
     /**
@@ -109,8 +130,15 @@ export class Auth<User extends UserIdentifier> {
      * @param request - The current request
      * @returns The session associated with the request
      */
-    getSession(request: Request) {
-        return this.sessionStorage.getSession(request.headers.get("Cookie"));
+    async getSession(request: Request) {
+        const [error, session] = await tryCatch(
+            this.sessionStorage.getSession(request.headers.get("Cookie"))
+        );
+        if (error) {
+            await this.logoutAndRedirect(request);
+        }
+
+        return session as Session<{ userId: UserId }>;
     }
 
     /**
@@ -130,7 +158,7 @@ export class Auth<User extends UserIdentifier> {
      * Ensures a user is authenticated or redirects to the login page.
      *
      * @param request - The current request
-     * @param redirectTo - URL to redirect to after login (defaults to current path)
+     * @param redirectTo - URL to redirect to after login (defaults to the current path)
      * @returns The authenticated user data
      * @throws Redirects to login page if user is not authenticated
      */
@@ -139,22 +167,30 @@ export class Auth<User extends UserIdentifier> {
         redirectTo: string = new URL(request.url).pathname
     ) => {
         const userId = await this.getUserId(request);
+        const user = await this.#storageAdapter.get(userId!);
 
-        if (!userId) this.#throwRedirect(redirectTo);
-        const user = await this.#storageAdapter.get(userId);
-
-        if (!user) this.#throwRedirect(redirectTo);
+        if (!user) {
+            await this.logoutAndRedirect(request, redirectTo);
+        }
 
         return user;
     };
 
     /**
-     * Logs out the current user.
+     * Logs out the current user, clears their session, and redirects to the login page with an optional redirect parameter.
      *
-     * @param request - The current request
-     * @returns A redirect response to the logout page
+     * @param {Request} request - The incoming client request object, containing session and user information.
+     * @param {string} [afterLoginRedirectTo] - An optional URL parameter to specify where the user should be redirected after logging in again.
+     * @return {Promise<Response>} A response object containing the redirection to the login page and updated headers with the destroyed session cookie.
      */
-    async logout(request: Request): Promise<Response> {
+    async logoutAndRedirect(
+        request: Request,
+        afterLoginRedirectTo?: string
+    ): Promise<Response> {
+        const searchParams = serializeQueryParams({
+            redirectTo: afterLoginRedirectTo,
+        });
+
         const session = await this.getSession(request);
         const userId = await this.getUserId(request);
 
@@ -162,7 +198,7 @@ export class Auth<User extends UserIdentifier> {
             await this.#storageAdapter.remove(userId);
         }
 
-        return safeRedirect(this.#loginPageUrl, {
+        return safeRedirect(`${this.#loginPageUrl}?${searchParams}`, {
             headers: {
                 "Set-Cookie": await this.sessionStorage.destroySession(session),
             },
@@ -170,16 +206,28 @@ export class Auth<User extends UserIdentifier> {
     }
 
     /**
-     * Retrieves the token of the authenticated user.
-     * User this function if auth user has token property
+     * Retrieves the authentication token of the current user.
      *
-     * @param request - The request object
-     * @returns A promise that resolves to the token of the authenticated user
-     * @throws Redirects to login page if user is not authenticated
+     * @param request - The incoming request object
+     * @returns A promise that resolves to the user's authentication token
+     * @throws {Error} If user is not authenticated or does not have a token
+     * @throws {Response} Redirects to login page if user is not authenticated
+     *
+     * @remarks
+     * This method expects the User type to include a token property.
+     * Only use this method if you are certain the user object will contain a token,
+     * otherwise it will throw an error.
      */
-    async requireToken(request: Request): Promise<string> {
-        const user = await this.requireUserOrRedirect(request);
-        return user?.token ?? "";
+    async requireToken<T extends UserIdentifier & { token?: string }>(
+        request: Request
+    ): Promise<string> {
+        const user = (await this.requireUserOrRedirect(request)) as never as T;
+
+        if (!user.token) {
+            throw new Error("User doesn't have a token");
+        }
+
+        return user.token;
     }
 
     /**
@@ -195,13 +243,5 @@ export class Auth<User extends UserIdentifier> {
     async getAuthUsers(request: Request) {
         await this.requireUserOrRedirect(request);
         return await this.#storageAdapter.getAll();
-    }
-
-    /**
-     * Helper function to generate a redirect URL and throw the redirect.
-     */
-    #throwRedirect(redirectTo: string): never {
-        const searchParams = new URLSearchParams([["redirectTo", redirectTo]]);
-        throw safeRedirect(`${this.#loginPageUrl}?${searchParams}`);
     }
 }

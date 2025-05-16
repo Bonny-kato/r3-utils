@@ -5,12 +5,14 @@
  * @param {Request} request - The HTTP request object containing form data.
  * @returns {Promise<T>} - A promise that resolves to the form data object of the specified type.
  */
-export const getRequestFormData = async <T>(request: Request): Promise<T> => {
+export const parseRequestData = async <TData>(
+    request: Request
+): Promise<TData> => {
     const contentType = request.headers.get("content-type");
 
     if (contentType?.includes("multipart/form-data")) {
-        return Object.fromEntries(await request.formData()) as T;
+        return Object.fromEntries(await request.formData()) as TData;
     }
     const formData = await request.json();
-    return formData as T;
+    return formData as TData;
 };

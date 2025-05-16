@@ -2,6 +2,8 @@
  * Type definitions for access control module
  */
 
+import { UserId } from "../auth";
+
 /**
  * Interface representing a user role with permissions
  */
@@ -21,7 +23,7 @@ export interface UserRole {
  * Interface representing a base auth user
  */
 export interface AuthUser {
-    id: string;
+    id: UserId;
     /**
      * The roles assigned to the user
      * Each role has a name and associated permissions
@@ -31,7 +33,15 @@ export interface AuthUser {
     /**
      * Additional user properties can be added
      */
-    [key: string]: any;
+    [key: string]:
+        | object
+        | string
+        | number
+        | boolean
+        | object[]
+        | string[]
+        | number[]
+        | boolean[];
 }
 
 /**

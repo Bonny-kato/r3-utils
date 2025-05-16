@@ -1,5 +1,5 @@
 export type UserId = string | number;
-export type UserIdentifier = { id: UserId; token?: string };
+export type UserIdentifier = { id: UserId };
 
 export interface AuthStorageAdapter<User extends UserIdentifier> {
     /**

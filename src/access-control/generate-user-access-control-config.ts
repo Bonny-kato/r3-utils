@@ -1,4 +1,10 @@
-import { AccessControlConfig, AuthUser, RoleNames, UniquePermissions, UserAttribute } from "./type";
+import {
+    AccessControlConfig,
+    AuthUser,
+    RoleNames,
+    UniquePermissions,
+    UserAttribute,
+} from "./type";
 
 /**
  * Generates the access control configuration for a user based on their roles and permissions.
@@ -40,6 +46,6 @@ export const generateUserAccessControlConfig = <T extends AuthUser>(
  * Type for the generateUserAccessControlConfig function
  * Allows consumers to provide their own user type that extends AuthUser
  */
-export type GenerateUserAccessControlConfigFunc = <T extends AuthUser>(
+export type GenerateAccessControlConfigFunc<T extends AuthUser> = (
     user?: T
 ) => AccessControlConfig<T>;

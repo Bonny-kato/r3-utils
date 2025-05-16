@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 import { useFetcher } from "react-router";
-import { ErrorType, TryCatchHttpReturnType } from "../http-client/try-catch-http";
+import {
+    ErrorType,
+    TryCatchHttpReturnType,
+} from "../http-client/try-catch-http";
 
 /**
  * Result type returned by the useUploadFile hook
@@ -64,11 +67,15 @@ type UseUploadFileOptions = {
  *   );
  * };
  */
-export const useUploadFile = <TData = unknown>({
+export const useUploadFile = <
+    TData = unknown,
+    TError extends ErrorType = ErrorType,
+>({
     action,
     filePropertyName = "file",
 }: UseUploadFileOptions): UseUploadFileResult<TData> => {
-    const uploadFileFetcher = useFetcher<TryCatchHttpReturnType<TData>>();
+    const uploadFileFetcher =
+        useFetcher<TryCatchHttpReturnType<TData, TError>>();
     const isUploading = uploadFileFetcher.state !== "idle";
 
     const uploadFile = useCallback(

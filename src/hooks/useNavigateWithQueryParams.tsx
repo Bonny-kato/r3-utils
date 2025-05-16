@@ -10,7 +10,7 @@ import { useSearchParamsState } from "./useSearchParamsState";
  * @internal
  */
 const useGeneratePathnameWithQueryParams = () => {
-    const [searchParams] = useSearchParamsState<{ page: number; q: string }>();
+    const [searchParams] = useSearchParamsState<{ page: string; q: string }>();
     return (to: string) => {
         const urlSearchParams = serializeQueryParams(searchParams);
         return `${to}?${urlSearchParams}`;
@@ -37,7 +37,8 @@ const useGeneratePathnameWithQueryParams = () => {
  */
 export const useNavigateWithQueryParams = () => {
     const navigate = useNavigate();
-    const generatePathnameWithDataFilterParams = useGeneratePathnameWithQueryParams();
+    const generatePathnameWithDataFilterParams =
+        useGeneratePathnameWithQueryParams();
 
     return (to: string, options?: NavigateOptions) => {
         navigate(generatePathnameWithDataFilterParams(to), options);
@@ -64,9 +65,16 @@ export const useNavigateWithQueryParams = () => {
  */
 export const LinkWithQueryParams = forwardRef<HTMLAnchorElement, LinkProps>(
     ({ to, ...rest }, ref) => {
-        const generatePathnameWithQueryParams = useGeneratePathnameWithQueryParams();
+        const generatePathnameWithQueryParams =
+            useGeneratePathnameWithQueryParams();
 
-        return <Link ref={ref} to={generatePathnameWithQueryParams(String(to))} {...rest} />;
+        return (
+            <Link
+                ref={ref}
+                to={generatePathnameWithQueryParams(String(to))}
+                {...rest}
+            />
+        );
     }
 );
 

@@ -8,7 +8,10 @@ export type SubmitTarget =
     | URLSearchParams
     | null;
 
-type UseSubmitData<T = unknown> = (data: T, options?: SubmitOptions) => void;
+type UseSubmitData<T = unknown> = (
+    data: T,
+    options?: SubmitOptions
+) => Promise<void>;
 
 /**
  * A custom hook that returns a function to submit data.
@@ -20,7 +23,7 @@ type UseSubmitData<T = unknown> = (data: T, options?: SubmitOptions) => void;
  *
  * @returns {UseSubmitData<T>} - Function that submits the provided data
  *                               with specified options.
- * 
+ *
  * @example
  * // In a form component
  * interface UserFormData {
@@ -28,26 +31,26 @@ type UseSubmitData<T = unknown> = (data: T, options?: SubmitOptions) => void;
  *   email: string;
  *   role: string;
  * }
- * 
+ *
  * const UserForm = () => {
  *   const submitData = useSubmitData<UserFormData>();
- *   
+ *
  *   const handleSubmit = (event) => {
  *     event.preventDefault();
- *     
+ *
  *     const formData = {
  *       name: 'John Doe',
  *       email: 'john@example.com',
  *       role: 'admin'
  *     };
- *     
+ *
  *     // Submit the data with POST method
- *     submitData(formData, { 
+ *     submitData(formData, {
  *       method: 'post',
  *       action: '/api/users'
  *     });
  *   };
- *   
+ *
  *   return (
  *     <form onSubmit={handleSubmit}>
  *       // Form fields would go here

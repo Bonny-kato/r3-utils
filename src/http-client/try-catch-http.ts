@@ -1,5 +1,6 @@
 import { AxiosError } from "axios";
-import { checkIsDevMode } from "../utils";
+import { HTTP_INTERNAL_SERVER_ERROR } from "../constants";
+import { checkIsDevMode, tryCatch } from "../utils";
 
 /**
  * Standard error type used throughout the application.
@@ -22,13 +23,15 @@ type SuccessType<T> = [null, T];
  * Represents a failed operation result in a try-catch pattern.
  * First element is the error information, second element is null (no data).
  */
-type FailureType = [ErrorType, null];
+type FailureType<TError extends ErrorType> = [TError, null];
 
 /**
  * Return type for functions wrapped with tryCatch.
  * Either contains a successful result or error information.
  */
-export type TryCatchHttpReturnType<T> = SuccessType<T> | FailureType;
+export type TryCatchHttpReturnType<TData, TError extends ErrorType> =
+    | SuccessType<TData>
+    | FailureType<TError>;
 
 /**
  * Structure of error data typically returned from API responses.
@@ -42,48 +45,53 @@ interface ErrorData {
     description?: string;
 }
 
+const defaultErrorObj = {
+    message: "Unknown error",
+    status: HTTP_INTERNAL_SERVER_ERROR,
+};
+
 /**
  * Extracts standardized error information from various error types.
  *
  * @param error - The caught error of any type
  * @returns A promise resolving to standardized error information
  */
-const extractErrorInfo = async (error: unknown): Promise<ErrorType> => {
-    // Log errors in development mode only
+const extractErrorInfo = async <TError extends ErrorType>(
+    error: unknown
+): Promise<TError> => {
     if (checkIsDevMode()) {
-        // Using console.error is more appropriate for errors
         console.error("[API Error]:", error);
     }
 
-    // Handle Axios errors (network or API errors)
     if (error instanceof AxiosError) {
         const errorData = error.response?.data as ErrorData | undefined;
 
         return {
-            message: errorData?.message || error.message || "Unknown API error",
-            status: Number(error.response?.status) || 500,
+            ...error.response?.data,
+            message:
+                errorData?.message || error.message || defaultErrorObj.message,
+            status:
+                Number(error.response?.status) || HTTP_INTERNAL_SERVER_ERROR,
         };
     }
 
     // Handle standard JavaScript errors
     if (error instanceof Error) {
         return {
-            message: error.message || "Unknown error",
-            status: 500,
-        };
+            ...defaultErrorObj,
+            message: error.message,
+        } as TError;
     }
 
-    // Handle non-Error objects or primitives
-    return {
-        message: String(error) || "Unknown error",
-        status: 500,
-    };
+    return defaultErrorObj as TError;
 };
 
 /**
  * Type definition for an async function that can be wrapped with tryCatch.
  */
-type AsyncFunc<Args extends unknown[], TData> = (...args: Args) => Promise<TData>;
+type AsyncFunc<Args extends unknown[], TData> = (
+    ...args: Args
+) => Promise<TData>;
 
 /**
  * Higher-order function that wraps an async function with try-catch error handling.
@@ -99,7 +107,7 @@ type AsyncFunc<Args extends unknown[], TData> = (...args: Args) => Promise<TData
  *
  * @example
  * ```typescript
- * const safeGetUser = tryCatch(async (id: string) => {
+ * const safeGetUser = tryCatchHttp(async (id: string) => {
  *   return await api.getUser(id);
  * });
  *
@@ -111,16 +119,22 @@ type AsyncFunc<Args extends unknown[], TData> = (...args: Args) => Promise<TData
  * }
  * ```
  */
-export const tryCatchHttp = <Args extends unknown[], TData>(
+export const tryCatchHttp = <
+    TData,
+    TError extends ErrorType = ErrorType,
+    Args extends unknown[] = [],
+>(
     asyncFunc: AsyncFunc<Args, TData>
-): ((...args: Args) => Promise<TryCatchHttpReturnType<TData>>) => {
-    return async (...args: Args): Promise<TryCatchHttpReturnType<TData>> => {
-        try {
-            const result = await asyncFunc(...args);
-            return [null, result] as SuccessType<TData>;
-        } catch (error) {
+): ((...args: Args) => Promise<TryCatchHttpReturnType<TData, TError>>) => {
+    return async (
+        ...args: Args
+    ): Promise<TryCatchHttpReturnType<TData, TError>> => {
+        const [error, response] = await tryCatch<TData>(asyncFunc(...args));
+
+        if (error) {
             const errorInfo = await extractErrorInfo(error);
-            return [errorInfo, null] as FailureType;
+            return [errorInfo, null] as FailureType<TError>;
         }
+        return [null, response] as SuccessType<TData>;
     };
 };

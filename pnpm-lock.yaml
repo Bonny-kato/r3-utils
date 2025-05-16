@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      prettier-plugin-organize-imports:
-        specifier: ^4.1.0
-        version: 4.1.0(prettier@3.5.3)(typescript@5.8.2)
     devDependencies:
       '@bonny-kato/localstorage':
         specifier: ^0.0.2
@@ -78,6 +74,9 @@ importers:
       prettier:
         specifier: ^3.5.3
         version: 3.5.3
+      prettier-plugin-organize-imports:
+        specifier: ^4.1.0
+        version: 4.1.0(prettier@3.5.3)(typescript@5.8.2)
       react:
         specifier: ^19.0.0
         version: 19.0.0
