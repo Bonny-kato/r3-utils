@@ -21,14 +21,62 @@ The main class for making HTTP requests.
 
 ```typescript
 class HttpClient {
-  constructor(baseUrl: string);
-  
+  constructor(config: HttpRequestConfig);
+
   // HTTP Methods
-  get<T = any>(endpoint: string, token?: string): Promise<[ErrorType | null, T | null]>;
-  post<T = any>(endpoint: string, data: object, token?: string): Promise<[ErrorType | null, T | null]>;
-  put<T = any>(endpoint: string, data: object, token?: string): Promise<[ErrorType | null, T | null]>;
-  patch<T = any>(endpoint: string, data: object, token?: string): Promise<[ErrorType | null, T | null]>;
-  delete<T = any>(endpoint: string, token?: string): Promise<[ErrorType | null, T | null]>;
+  get<TData, TError extends ErrorType = ErrorType>(
+    endpoint: string, 
+    config?: HttpMethodRequestConfig
+  ): Promise<[TError | null, TData | null]>;
+
+  post<TData, TError extends ErrorType = ErrorType>(
+    endpoint: string, 
+    data: object, 
+    config?: HttpMethodRequestConfig
+  ): Promise<[TError | null, TData | null]>;
+
+  put<TData, TError extends ErrorType = ErrorType>(
+    endpoint: string, 
+    data: object, 
+    config?: HttpMethodRequestConfig
+  ): Promise<[TError | null, TData | null]>;
+
+  patch<TData, TError extends ErrorType = ErrorType>(
+    endpoint: string, 
+    data: object, 
+    config?: HttpMethodRequestConfig
+  ): Promise<[TError | null, TData | null]>;
+
+  delete<TData, TError extends ErrorType = ErrorType>(
+    endpoint: string, 
+    config?: HttpMethodRequestConfig
+  ): Promise<[TError | null, TData | null]>;
+}
+
+// Configuration options for initializing the HttpClient
+type HttpRequestConfig = {
+  /** Base URL for all API requests */
+  baseUrl: string;
+  /** Optional headers to include with all requests */
+  headers?: RawAxiosRequestHeaders;
+  /** Whether to log request details to the console */
+  logRequests?: boolean;
+  /** Request timeout in milliseconds */
+  timeout?: number;
+};
+
+// Configuration options for individual HTTP method requests
+interface HttpMethodRequestConfig {
+  /** Base URL override for this specific request */
+  baseUrl?: string;
+  /** Custom headers for this specific request */
+  headers?: RawAxiosRequestHeaders;
+  /** AbortSignal to cancel request */
+  signal?: AbortSignal;
+  /** Auth token to include in request */
+  token?: string;
+  /** Request timeout in milliseconds */
+  timeout?: number;
 }
 ```
 
@@ -53,7 +101,10 @@ type TryCatchHttpReturnType<T> = [null, T] | [ErrorType, null];
 import { HttpClient } from 'r3-utils/http-client';
 
 // Create a new HTTP client instance
-const api = new HttpClient('https://api.example.com/v1');
+const api = new HttpClient({
+  baseUrl: 'https://api.example.com/v1',
+  logRequests: true // Enable request logging in development
+});
 ```
 
 ### Making GET Requests
@@ -66,14 +117,19 @@ interface User {
   email: string;
 }
 
-async function getUser(userId: string) {
-  const [error, user] = await api.get<User>(`/users/${userId}`);
-  
+async function getUser(userId: string, authToken?: string) {
+  const [error, user] = await api.get<User>(`/users/${userId}`, {
+    token: authToken,
+    // You can also specify other options:
+    // signal: abortController.signal,
+    // timeout: 5000,
+  });
+
   if (error) {
     console.error(`Failed to fetch user: ${error.message}`);
     return null;
   }
-  
+
   return user;
 }
 ```
@@ -99,9 +155,14 @@ async function createUser(userData: CreateUserRequest, authToken: string) {
   const [error, response] = await api.post<CreateUserResponse>(
     '/users',
     userData,
-    authToken
+    {
+      token: authToken,
+      // You can also specify other options:
+      // headers: { 'X-Custom-Header': 'value' },
+      // timeout: 10000,
+    }
   );
-  
+
   if (error) {
     if (error.status === 401) {
       // Handle authentication error
@@ -112,7 +173,7 @@ async function createUser(userData: CreateUserRequest, authToken: string) {
     }
     return null;
   }
-  
+
   return response;
 }
 ```
@@ -124,18 +185,24 @@ async function uploadProfileImage(userId: string, imageFile: File, authToken: st
   // Create FormData object
   const formData = new FormData();
   formData.append('image', imageFile);
-  
+
   const [error, response] = await api.post(
     `/users/${userId}/profile-image`,
     formData,
-    authToken
+    {
+      token: authToken,
+      headers: {
+        // No need to set Content-Type for FormData, Axios handles it automatically
+        'X-Upload-Type': 'profile-image'
+      }
+    }
   );
-  
+
   if (error) {
     console.error(`Failed to upload image: ${error.message}`);
     return false;
   }
-  
+
   return true;
 }
 ```
@@ -144,24 +211,20 @@ async function uploadProfileImage(userId: string, imageFile: File, authToken: st
 
 ```typescript
 // Generic function to handle API responses
-async function handleApiRequest<T>(
-  apiCall: Promise<[ErrorType | null, T | null]>,
-  errorHandler?: (error: ErrorType) => void
-): Promise<T | null> {
-  const [error, data] = await apiCall;
-  
-  if (error) {
-    if (errorHandler) {
-      errorHandler(error);
-    } else {
-      console.error(`API Error (${error.status}): ${error.message}`);
-    }
-    return null;
-  }
-  
-  return data;
+
+type UserErrorResponse = {
+    message:number,
+    status:number
+    errorCode:number
 }
 
+type UserResponse = {
+    name:string,
+    email:string
+}
+
+
+const [error, users] = api.get<UserResponse, UserErrorResponse>('/users/123');
 // Usage
 const user = await handleApiRequest(
   api.get<User>('/users/123'),
@@ -210,23 +273,23 @@ export function useApi<T>(endpoint: string, token?: string) {
 
   useEffect(() => {
     let isMounted = true;
-    
+
     async function fetchData() {
       const [err, response] = await api.get<T>(endpoint, token);
-      
+
       if (!isMounted) return;
-      
+
       setLoading(false);
-      
+
       if (err) {
         setError(err.message);
       } else {
         setData(response);
       }
     }
-    
+
     fetchData();
-    
+
     return () => {
       isMounted = false;
     };
@@ -238,11 +301,11 @@ export function useApi<T>(endpoint: string, token?: string) {
 // Usage in a component
 function UserProfile({ userId, token }) {
   const { data: user, error, loading } = useApi<User>(`/users/${userId}`, token);
-  
+
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
   if (!user) return <div>User not found</div>;
-  
+
   return (
     <div>
       <h1>{user.name}</h1>

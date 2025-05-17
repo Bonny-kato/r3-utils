@@ -56,6 +56,16 @@ Checks if an error is a custom error response.
 function isCustomErrorResponse(error: unknown): boolean
 ```
 
+#### tryCatch
+
+A utility function that wraps async operations to handle errors in a type-safe way. It returns a tuple with either [error, null] or [null, data] to enable proper type narrowing.
+
+```typescript
+function tryCatch<T, E = Error>(
+  promise: Promise<T>
+): Promise<[E, null] | [null, T]>
+```
+
 ### Environment Validation
 
 #### validateEnv
@@ -94,12 +104,23 @@ Formats a given monetary amount into a human-readable string with currency notat
 ```typescript
 function formatAmount(
   amount?: number,
-  showCurrency: CurrencyVisibility = CurrencyVisibility.SHOW,
-  options: FormatOptions = {
-    decimals: 0,
-    showAbbreviation: AbbreviationVisibility.SHOW,
-  }
+  options: FormatOptions = {}
 ): string
+
+interface FormatOptions {
+  /** Currency code (e.g. "TZS", "USD") */
+  currency?: string;
+  /** Locale string (e.g. "en-US") */
+  locale?: string;
+  /** Maximum number of decimal places to display */
+  maximumFractionDigits?: number;
+  /** Minimum number of decimal places to display */
+  minimumFractionDigits?: number;
+  /** Whether to abbreviate large numbers (e.g. 1M, 1B) */
+  showAbbreviation?: boolean;
+  /** Whether to show currency symbol/code */
+  showCurrency?: boolean;
+}
 ```
 
 #### getDurationFromNow
@@ -148,6 +169,14 @@ Extracts form data from a request.
 function getRequestFormData(request: Request): Promise<FormData>
 ```
 
+#### parseRequestData
+
+Extracts data from a request and returns it as a typed object. Automatically handles both JSON and multipart/form-data content types.
+
+```typescript
+function parseRequestData<TData>(request: Request): Promise<TData>
+```
+
 ### URL and Query Parameters
 
 #### parseSearchParams
@@ -193,22 +222,62 @@ function checkIsDevMode(): boolean
 ### Error Handling
 
 ```typescript
-import { throwCustomError, safeRedirect } from 'r3-utils/utils';
+import { throwCustomError, safeRedirect, tryCatch } from 'r3-utils/utils';
 
 // In an action function
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const email = formData.get('email');
-  
+
   if (!email) {
     // Throw a custom error with a 400 status code
     throwCustomError('Email is required', 400);
   }
-  
+
   // Process the form...
-  
+
   // Safely redirect to a success page
   return safeRedirect('/success');
+}
+
+// Using tryCatch for error handling
+async function fetchUserData(userId: string) {
+  const [error, userData] = await tryCatch(
+    fetch(`https://api.example.com/users/${userId}`).then(res => res.json())
+  );
+
+  if (error) {
+    console.error('Failed to fetch user data:', error.message);
+    return null;
+  }
+
+  return userData;
+}
+
+// Using tryCatch with custom error type
+interface ApiError {
+  code: string;
+  message: string;
+  details: string[];
+}
+
+async function updateUserProfile(userId: string, data: object) {
+  const [error, response] = await tryCatch<Response, ApiError>(
+    fetch(`https://api.example.com/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+  );
+
+  if (error) {
+    // TypeScript knows error is ApiError here
+    console.error(`Error ${error.code}: ${error.message}`);
+    error.details.forEach(detail => console.error(`- ${detail}`));
+    return false;
+  }
+
+  return response.ok;
 }
 ```
 
@@ -238,38 +307,55 @@ if (env.DEBUG) {
 ### Formatting
 
 ```typescript
-import { 
-  formatAmount, 
-  CurrencyVisibility, 
-  AbbreviationVisibility 
-} from 'r3-utils/utils';
+import { formatAmount } from 'r3-utils/utils';
 
 // Format a large amount with currency and abbreviation
-const formattedPrice = formatAmount(1500000, CurrencyVisibility.SHOW, {
-  decimals: 2,
-  showAbbreviation: AbbreviationVisibility.SHOW
+const formattedPrice = formatAmount(1500000, {
+  currency: 'TZS',
+  showCurrency: true,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  showAbbreviation: true
 });
 // Output: "TZS 1.50 M"
 
 // Format without currency
-const formattedAmount = formatAmount(1500000, CurrencyVisibility.HIDE, {
-  decimals: 0,
-  showAbbreviation: AbbreviationVisibility.SHOW
+const formattedAmount = formatAmount(1500000, {
+  showCurrency: false,
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+  showAbbreviation: true
 });
 // Output: "2 M"
 
 // Format without abbreviation
-const fullAmount = formatAmount(1500000, CurrencyVisibility.SHOW, {
-  decimals: 2,
-  showAbbreviation: AbbreviationVisibility.HIDE
+const fullAmount = formatAmount(1500000, {
+  currency: 'TZS',
+  showCurrency: true,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  showAbbreviation: false
 });
 // Output: "TZS 1,500,000.00"
+
+// Format with custom locale and currency
+const usdAmount = formatAmount(1500000, {
+  currency: 'USD',
+  locale: 'en-US',
+  showCurrency: true,
+  showAbbreviation: true
+});
+// Output: "$1.5 M"
 ```
 
 ### Data Manipulation
 
 ```typescript
-import { conditionallyAddToArray, removeNullish } from 'r3-utils/utils';
+import { 
+  conditionallyAddToArray, 
+  removeNullish, 
+  parseRequestData 
+} from 'r3-utils/utils';
 
 // Add an item to an array only if a condition is met
 const isAdmin = user.role === 'admin';
@@ -294,6 +380,29 @@ const userInput = {
 
 const cleanInput = removeNullish(userInput);
 // Output: { name: 'John', email: 'john@example.com' }
+
+// Using parseRequestData in a server action or API route
+async function handleFormSubmission(request: Request) {
+  // Automatically handles both JSON and multipart/form-data
+  interface UserFormData {
+    name: string;
+    email: string;
+    profileImage?: File;
+  }
+
+  const userData = await parseRequestData<UserFormData>(request);
+
+  // Now you can use the typed data
+  console.log(`Processing submission for ${userData.name} (${userData.email})`);
+
+  if (userData.profileImage) {
+    // Handle file upload
+    await uploadProfileImage(userData.profileImage);
+  }
+
+  // Process the data...
+  return { success: true };
+}
 ```
 
 ### URL and Query Parameters
@@ -305,28 +414,28 @@ import { parseSearchParams, serializeQueryParams } from 'r3-utils/utils';
 function SearchResults() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  
+
   // Parse search parameters into a typed object
   const params = parseSearchParams<{
     q: string;
     page: number;
     sort: string;
   }>(searchParams);
-  
+
   // Use the typed parameters
   console.log(`Searching for: ${params.q}`);
   console.log(`Page: ${params.page}`);
-  
+
   // Create new search parameters
   const newParams = {
     q: params.q,
     page: params.page + 1,
     sort: 'date',
   };
-  
+
   // Serialize parameters back to URL search parameters
   const newSearchParams = serializeQueryParams(newParams);
-  
+
   return (
     <Link to={`/search?${newSearchParams}`}>Next Page</Link>
   );

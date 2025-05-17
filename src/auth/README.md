@@ -143,7 +143,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 ```typescript
 // In a logout route handler
 export async function action({ request }: ActionFunctionArgs) {
-  return auth.logout(request);
+  return auth.logoutAndRedirect(request);
 }
 ```
 
