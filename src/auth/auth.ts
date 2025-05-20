@@ -14,7 +14,7 @@ import {
     AuthStorageAdapter,
     UserId,
     UserIdentifier,
-} from "./auth-storage-adpter";
+} from "./auth-storage-adapter";
 
 const defaultCookieConfig: CookieSessionStorageOptions["cookie"] = {
     httpOnly: true,

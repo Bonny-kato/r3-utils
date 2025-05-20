@@ -3,7 +3,7 @@ import {
     AuthStorageAdapter,
     UserId,
     UserIdentifier,
-} from "../auth-storage-adpter";
+} from "../auth-storage-adapter";
 
 /**
  * Redis-based implementation of the AuthStorageAdapter interface.

@@ -63,9 +63,14 @@ export const useSubmitData = <T = unknown>(): UseSubmitData<T> => {
     const submit = useSubmit();
 
     return async (data: T, options?: SubmitOptions) => {
+        const encType =
+            data instanceof FormData
+                ? "multipart/form-data"
+                : "application/json";
+
         await submit(data as never as SubmitTarget, {
             method: "post",
-            encType: "application/json",
+            encType,
             viewTransition: true,
             ...options,
         });

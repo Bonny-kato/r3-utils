@@ -4,4 +4,4 @@ export type {
     AuthStorageAdapter,
     UserId,
     UserIdentifier,
-} from "./auth-storage-adpter";
+} from "./auth-storage-adapter.ts";

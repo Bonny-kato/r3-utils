@@ -1,6 +1,6 @@
 {
   "name": "r3-utils",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "A library of reusable hooks, utilities, and components for React Router v7",
   "type": "module",
   "main": "dist/r3-utils.js",
@@ -45,7 +45,7 @@
   "scripts": {
     "dev": "vite",
     "build": "rimraf dist && vite build && tsc -p tsconfig.dts.json --listEmittedFiles",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint --config eslint.config.ts . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test": "echo \"Error: no test specified\" && exit 1",
     "publish": "npm publish --access public",

@@ -20,7 +20,7 @@ export const serializeQueryParams = (
     const urlSearchParams = new URLSearchParams();
 
     for (const [key, value] of Object.entries(params ?? {})) {
-        if (value) {
+        if (value != null) {
             if (Array.isArray(value)) {
                 value.forEach((item) =>
                     urlSearchParams.append(key, String(item))
@@ -34,10 +34,7 @@ export const serializeQueryParams = (
     return urlSearchParams.toString();
 };
 
-export type ParsedSearchParams = Record<
-    string,
-    string | string[] | undefined | boolean | number
->;
+export type ParsedSearchParams = Record<string, string | string[] | undefined>;
 
 /**
  * Extracts the query string parameters from a given URL and returns them as an object.

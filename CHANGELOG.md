@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.0.1](https://github.com/Bonny-kato/r3-utils/compare/v3.0.0...v2.0.1) (2025-05-21)
+
+### Added
+
+- `eslint.config.ts`: Created new ESLint configuration using flat config format with TypeScript support
+- `qodana.yaml`: Added configuration for Qodana static code analysis
+
+### Changed
+
+- `src/hooks/useSubmitData.ts`: Updated to dynamically set `encType` based on data type
+    - Uses "multipart/form-data" for FormData instances
+    - Uses "application/json" for other data types
+- `src/utils/query-params-utils.ts`: Improved type safety and simplification
+    - Changed nullish value handling from `if (value)` to `if (value != null)`
+    - Simplified `ParsedSearchParams` type by removing boolean and number types
+- `tsconfig.node.json`: Added `eslint.config.ts` to "include" array
+
+### Deprecated
+
+- `src/utils/check-is-dev-mode.ts`: Marked for deprecation
+    - Added documentation explaining package reliability issues
+    - Provided direct copy usage instructions
+    - Enhanced environment check implementation
+
 ## 1.1.0 (2025-04-09)
 
 
