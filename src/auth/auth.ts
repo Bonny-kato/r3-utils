@@ -1,14 +1,10 @@
 import {
     createCookieSessionStorage,
+    redirect,
     Session,
     SessionIdStorageStrategy,
 } from "react-router";
-import {
-    checkIsDevMode,
-    safeRedirect,
-    serializeQueryParams,
-    tryCatch,
-} from "../utils";
+import { checkIsDevMode, safeRedirect, tryCatch } from "../utils";
 import { JsonStorageAdapter } from "./adapters";
 import {
     AuthStorageAdapter,
@@ -135,7 +131,7 @@ export class Auth<User extends UserIdentifier> {
             this.sessionStorage.getSession(request.headers.get("Cookie"))
         );
         if (error) {
-            await this.logoutAndRedirect(request);
+            throw redirect(this.#logoutPageUrl);
         }
 
         return session as Session<{ userId: UserId }>;
@@ -170,27 +166,19 @@ export class Auth<User extends UserIdentifier> {
         const user = await this.#storageAdapter.get(userId!);
 
         if (!user) {
-            await this.logoutAndRedirect(request, redirectTo);
+            this.#throwRedirect(redirectTo);
         }
 
         return user;
     };
 
     /**
-     * Logs out the current user, clears their session, and redirects to the login page with an optional redirect parameter.
+     * Logs out the current user, clears their session, and redirects to the login page.
      *
      * @param {Request} request - The incoming client request object, containing session and user information.
-     * @param {string} [afterLoginRedirectTo] - An optional URL parameter to specify where the user should be redirected after logging in again.
      * @return {Promise<Response>} A response object containing the redirection to the login page and updated headers with the destroyed session cookie.
      */
-    async logoutAndRedirect(
-        request: Request,
-        afterLoginRedirectTo?: string
-    ): Promise<Response> {
-        const searchParams = serializeQueryParams({
-            redirectTo: afterLoginRedirectTo,
-        });
-
+    async logoutAndRedirect(request: Request): Promise<Response> {
         const session = await this.getSession(request);
         const userId = await this.getUserId(request);
 
@@ -198,7 +186,7 @@ export class Auth<User extends UserIdentifier> {
             await this.#storageAdapter.remove(userId);
         }
 
-        return safeRedirect(`${this.#loginPageUrl}?${searchParams}`, {
+        return redirect(this.#loginPageUrl, {
             headers: {
                 "Set-Cookie": await this.sessionStorage.destroySession(session),
             },
@@ -229,7 +217,7 @@ export class Auth<User extends UserIdentifier> {
 
         return user.token;
     }
-
+    // Todo: Remove this function
     /**
      * Gets the user ID if the user is authenticated, or null otherwise.
      *
@@ -243,5 +231,13 @@ export class Auth<User extends UserIdentifier> {
     async getAuthUsers(request: Request) {
         await this.requireUserOrRedirect(request);
         return await this.#storageAdapter.getAll();
+    }
+
+    /**
+     * Helper function to generate a redirect URL and throw the redirect.
+     */
+    #throwRedirect(redirectTo: string): never {
+        const searchParams = new URLSearchParams([["redirectTo", redirectTo]]);
+        throw redirect(`${this.#logoutPageUrl}?${searchParams}`);
     }
 }

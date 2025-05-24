@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { serializeQueryParams } from "../utils";
+import { ParsedSearchParams, serializeQueryParams } from "../utils";
+
 /**
  * A hook that provides a state-like interface for URL search parameters.
  * It allows you to read and update URL search parameters with a React state-like API.
@@ -37,9 +38,7 @@ import { serializeQueryParams } from "../utils";
  *   setFilters({ ...filters, page: newPage });
  * };
  */
-export const useSearchParamsState = <
-    TData extends { [key: string]: string | string[] },
->(
+export const useSearchParamsState = <TData extends ParsedSearchParams>(
     defaultParams?: TData
 ): [TData, (p: TData) => void] => {
     const { pathname, search } = useLocation();
