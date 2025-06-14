@@ -16,6 +16,7 @@ export const actionError = <T = unknown>(error: ErrorType, data?: T) => {
     return dataWithError<ActionErrorType<T>>(
         {
             data,
+            // Todo return error object as it is
             errorMessage: error.message,
         },
         error.message,

@@ -1,6 +1,6 @@
-import { AuthUser, UserAccessControl } from './type';
-import { hasAttribute, hasPermission, hasRole } from './access-control-helpers';
-import { generateUserAccessControlConfig } from './generate-user-access-control-config';
+import { hasAttribute, hasPermission, hasRole } from "./access-control-helpers";
+import { generateUserAccessControlConfig } from "./generate-user-access-control-config";
+import { AuthUser, UserAccessControl } from "./type";
 
 /**
  * Error class for unauthorized access
@@ -11,9 +11,9 @@ export class UnauthorizedError extends Error {
      *
      * @param {string} message - Error message
      */
-    constructor(message = 'Unauthorized') {
+    constructor(message = "Unauthorized") {
         super(message);
-        this.name = 'UnauthorizedError';
+        this.name = "UnauthorizedError";
     }
 }
 
@@ -33,12 +33,15 @@ export const checkAccess = <T extends AuthUser>(
     user: T,
     { roles = [], permissions = [], attributes = {} }: UserAccessControl<T>
 ): boolean => {
-    const { userRoles, userPermissions, userAttributes } = generateUserAccessControlConfig<T>(user);
+    const { userRoles, userPermissions, userAttributes } =
+        generateUserAccessControlConfig<T>(user);
 
     return (
         (roles.length === 0 || hasRole(userRoles, roles)) &&
-        (permissions.length === 0 || hasPermission(userPermissions, permissions)) &&
-        (Object.keys(attributes).length === 0 || hasAttribute<T>(userAttributes, attributes))
+        (permissions.length === 0 ||
+            hasPermission(userPermissions, permissions)) &&
+        (Object.keys(attributes).length === 0 ||
+            hasAttribute<T>(userAttributes, attributes))
     );
 };
 
@@ -57,9 +60,13 @@ export const checkAccess = <T extends AuthUser>(
  *
  * @throws Will throw UnauthorizedError if the user doesn't have the necessary access.
  */
-export const requireAccess = <T extends AuthUser>(user: T, accessControl: UserAccessControl<T>): T => {
+export const requireAccess = <T extends AuthUser>(
+    user: T,
+    accessControl: UserAccessControl<T>
+): T => {
     const hasAccess = checkAccess<T>(user, accessControl);
 
+    // Todo :throw unauthorized error along side with status code
     if (!hasAccess) throw new UnauthorizedError();
 
     return user;

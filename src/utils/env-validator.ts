@@ -60,20 +60,23 @@ export function requiredIn(
 /**
  * Shorthand for requiring a variable in production environment
  */
-export const requiredInProduction: z.RefinementEffect<string | undefined | boolean>["refinement"] =
-    requiredIn(["production"]);
+export const requiredInProduction: z.RefinementEffect<
+    string | undefined | boolean
+>["refinement"] = requiredIn(["production"]);
 
 /**
  * Shorthand for requiring a variable in development environment
  */
-export const requiredInDevelopment: z.RefinementEffect<string | undefined | boolean>["refinement"] =
-    requiredIn(["development"]);
+export const requiredInDevelopment: z.RefinementEffect<
+    string | undefined | boolean
+>["refinement"] = requiredIn(["development"]);
 
 /**
  * Shorthand for requiring a variable in both production and development environments
  */
-export const requiredInProdAndDev: z.RefinementEffect<string | undefined | boolean>["refinement"] =
-    requiredIn(["production", "development"]);
+export const requiredInProdAndDev: z.RefinementEffect<
+    string | undefined | boolean
+>["refinement"] = requiredIn(["production", "development"]);
 
 /**
  * Validates environment variables against a schema
@@ -88,8 +91,18 @@ export const validateEnv = <T extends z.ZodType>(
 ): z.infer<T> => {
     const mergedOptions = { ...defaultOptions, ...options };
 
+    // Todo: is supposed to be <mergedOptions.processENV> instead of <process.env>
+    //  Add dontenv package is needed for some cases  on jdoc
+
     try {
-        return schema.parse(process.env);
+        console.log(
+            "[---------------------------------------------------------]"
+        );
+        console.log("[env-direct]", options?.processENV);
+        console.log(
+            "[---------------------------------------------------------]"
+        );
+        return schema.parse(mergedOptions.processENV);
     } catch (error) {
         if (error instanceof z.ZodError) {
             const formatted = error.format();
@@ -155,7 +168,9 @@ export const createEnvSchema = <T extends CreateEnvSchema>(envVars: T) => {
                 );
                 break;
             case "number":
-                schema = z.preprocess((val) => Number(val), z.number()).optional();
+                schema = z
+                    .preprocess((val) => Number(val), z.number())
+                    .optional();
                 break;
             case "string":
             default:
