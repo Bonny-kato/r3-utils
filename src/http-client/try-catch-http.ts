@@ -33,17 +33,6 @@ export type TryCatchHttpReturnType<TData, TError extends ErrorType> =
     | SuccessType<TData>
     | FailureType<TError>;
 
-/**
- * Structure of error data typically returned from API responses.
- */
-interface ErrorData {
-    /** The root cause of the error */
-    cause: string;
-    /** Error message */
-    message: string;
-    /** Optional detailed description of the error */
-    description?: string;
-}
 
 const defaultErrorObj = {
     message: "Unknown error",
@@ -64,7 +53,7 @@ const extractErrorInfo = async <TError extends ErrorType>(
     }
 
     if (error instanceof AxiosError) {
-        const errorData = error.response?.data as ErrorData | undefined;
+        const errorData = error.response?.data as ErrorType | undefined;
 
         return {
             ...error.response?.data,

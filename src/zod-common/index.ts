@@ -1,4 +1,4 @@
-import { z, ZodSchema, ZodString } from "zod";
+import { RawCreateParams, Schema, z, ZodSchema, ZodString } from "zod";
 
 /**
  * Schema definition for pagination data.
@@ -187,11 +187,11 @@ export const TanzaniaMobileNumberSchema = NoneEmptyStringSchema("phoneNumber").r
  * for email formatting. If an invalid email is provided, the schema will
  * respond with a validation error.
  */
-export const OptionalEmailSchema = z
-    .string()
+export const OptionalEmailSchema = (label?:string) =>  z
+    .string({message:`${label} must be a string`})
     .optional()
     .default("")
-    .superRefine(createOptionalRefinement(z.string().email(), "Invalid email address"));
+    .superRefine(createOptionalRefinement(z.string().email(), `Invalid email address for ${label}`));
 
 //--------------------------------------------------------------
 
@@ -204,8 +204,37 @@ export const OptionalEmailSchema = z
  * This schema is useful for validating numeric data that is required to be positive or zero while
  * gracefully handling non-numeric inputs.
  */
-export const PositiveNumberSchema = z.coerce
-    .number({ message: `field must be a number` })
-    .nonnegative({ message: `field must be a non-negative number` });
+export const PositiveNumberSchema = (label:string) => z.coerce
+    .number({ message: `${label} must be a number` })
+    .positive({ message: `field must be a non-negative number` });
 
 //--------------------------------------------------------------
+
+/**
+ * Schema definition for the structure of an object that includes a label and a value.
+ * The schema validates the following properties:
+ *
+ * - label: A non-empty string. The specific validation is defined by the `NoneEmptyStringSchema` function using "label" as a parameter.
+ * - value: Can be a string, number, or boolean. The value type is validated using a union schema.
+ *
+ * Used to ensure strict validation of objects matching the label and value structure.
+ */
+export const LabelAndValueSchema = z.object({
+    label: NoneEmptyStringSchema("label"),
+    value: z.union([z.string(), z.number(), z.boolean()]),
+});
+
+// ---------------------------------------------------------------
+
+/**
+ * Creates a Zod array schema ensuring at least one item of a specified schema type.
+ * @param schema - Zod schema for array items
+ * @param params - Optional raw create parameters
+ * @returns Zod array schema with min 1 item
+ */
+export const AtLeastOneArrayItemSchema = <T extends Schema>(
+    schema: T,
+    params?: RawCreateParams
+) => {
+    return z.array(schema, params).min(1);
+};
