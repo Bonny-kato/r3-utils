@@ -1,5 +1,5 @@
 import { AxiosError } from "axios";
-import { HTTP_INTERNAL_SERVER_ERROR, NETWORK_ERROR_CODE } from "../constants";
+import { HTTP_INTERNAL_SERVER_ERROR } from "../constants";
 import { checkIsDevMode, tryCatch } from "../utils";
 
 /**
@@ -33,21 +33,10 @@ export type TryCatchHttpReturnType<TData, TError extends ErrorType> =
     | SuccessType<TData>
     | FailureType<TError>;
 
+
 const defaultErrorObj = {
     message: "Unknown error",
     status: HTTP_INTERNAL_SERVER_ERROR,
-};
-
-const isBrowserOffline = () =>
-    typeof window !== "undefined" &&
-    typeof navigator !== "undefined" &&
-    !window.navigator.onLine;
-
-const isAxiosNetworkError = (err: AxiosError) => {
-    if (isBrowserOffline()) return true;
-    if (err.request && !err.response) return true;
-    const code = (err.code || "").toUpperCase();
-    return Boolean(code && NETWORK_ERROR_CODE.includes(code));
 };
 
 /**
@@ -65,14 +54,6 @@ const extractErrorInfo = async <TError extends ErrorType>(
 
     if (error instanceof AxiosError) {
         const errorData = error.response?.data as ErrorType | undefined;
-
-        if (isAxiosNetworkError(error)) {
-            return {
-                message:
-                    "Unable to connect to the server. Please check your internet connect and try again.",
-                status: HTTP_INTERNAL_SERVER_ERROR,
-            } as TError;
-        }
 
         return {
             ...error.response?.data,

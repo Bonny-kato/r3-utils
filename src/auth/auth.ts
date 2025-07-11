@@ -216,9 +216,7 @@ export class Auth<User extends UserIdentifier> {
         const user = (await this.requireUserOrRedirect(request)) as never as T;
 
         if (!user.token) {
-            throw new Error(
-                "Authenticated user lacks the required token property"
-            );
+            throw new Error("Authenticated user lacks the required token property");
         }
 
         return user.token;

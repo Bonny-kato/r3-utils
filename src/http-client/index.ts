@@ -3,5 +3,6 @@
  * @module http-client
  */
 
+export type { TryCatchHttpReturnType } from "./try-catch-http.ts";
 export { HttpClient } from "./httpclient";
 export type { TryCatchHttpReturnType } from "./try-catch-http.ts";

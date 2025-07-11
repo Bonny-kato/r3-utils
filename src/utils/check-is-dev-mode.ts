@@ -13,7 +13,7 @@ export const checkIsDevMode = (): boolean => {
     if (typeof process !== "undefined" && process.env && process.env.NODE_ENV) {
         return process.env.NODE_ENV === "development";
     }
-
+    
     // Fallback for unknown environments
     return false;
 };
