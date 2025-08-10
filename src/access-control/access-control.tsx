@@ -1,14 +1,19 @@
-import { ReactNode } from 'react';
-import { AuthUser, UserAccessControl } from './type';
-import { hasAttribute, hasPermission, hasRole } from './access-control-helpers';
-import { useAccessControl } from './access-control-provider';
+import { ReactNode } from "react";
+import { checkIfAuthorized } from "./access-control-helpers";
+import { useAccessControl } from "./access-control-provider";
+import {
+    AccessControlStrictnessOptions,
+    AuthUser,
+    UserAccessControl,
+} from "./type";
 
 /**
  * Props for the AccessControl component
  *
  * @template T - Type that extends AuthUser
  */
-interface AccessControlProps<T extends AuthUser = AuthUser> extends UserAccessControl<T> {
+interface AccessControlProps<T extends AuthUser = AuthUser>
+    extends UserAccessControl<T> {
     /**
      * Content to render if the user has access
      */
@@ -19,15 +24,48 @@ interface AccessControlProps<T extends AuthUser = AuthUser> extends UserAccessCo
      * @default null
      */
     fallback?: ReactNode;
+
+    strictness?: AccessControlStrictnessOptions;
 }
 
 /**
- * Component that conditionally renders content based on user access
- * Uses the access control configuration from the AccessControlProvider context
+ * React component that conditionally renders content based on user access control.
+ * Checks if the current user has the required roles, permissions, and attributes.
  *
  * @template T - Type that extends AuthUser
- * @param {AccessControlProps<T>} props - Component props
- * @returns {ReactNode} Either children or fallback based on access check
+ * @param props - The access control props
+ * @param props.roles - Array of role names required for access (default: [])
+ * @param props.permissions - Array of permission strings required for access (default: [])
+ * @param props.attributes - Object of attribute key-value pairs required for access (default: {})
+ * @param props.children - Content to render if the user has access
+ * @param props.fallback - Content to render if the user doesn't have access (default: null)
+ * @param props.strictness - Strictness options for each access type (default: {})
+ * @returns The children if authorized, fallback if not authorized
+ *
+ * @example
+ * ```tsx
+ * // Basic usage - show content only to admins
+ * <AccessControl roles={['admin']}>
+ *   <AdminPanel />
+ * </AccessControl>
+ *
+ * // With fallback content
+ * <AccessControl
+ *   permissions={['write:posts']}
+ *   fallback={<div>You don't have permission to edit posts</div>}
+ * >
+ *   <PostEditor />
+ * </AccessControl>
+ *
+ * // With attribute-based access and strict checking
+ * <AccessControl
+ *   attributes={{ department: 'engineering', isActive: true }}
+ *   strictness={{ attributes: true }}
+ *   fallback={<div>Access restricted to active engineering staff</div>}
+ * >
+ *   <EngineeringTools />
+ * </AccessControl>
+ * ```
  */
 const AccessControl = <T extends AuthUser = AuthUser>({
     roles = [],
@@ -35,13 +73,19 @@ const AccessControl = <T extends AuthUser = AuthUser>({
     attributes = {},
     children,
     fallback = null,
+    strictness = {} as AccessControlStrictnessOptions,
 }: AccessControlProps<T>): ReactNode => {
-    const { userRoles, userPermissions, userAttributes } = useAccessControl<T>();
+    const accessControl = useAccessControl<T>();
 
-    const isAuthorized =
-        (roles.length === 0 || hasRole(userRoles, roles)) &&
-        (permissions.length === 0 || hasPermission(userPermissions, permissions)) &&
-        (Object.keys(attributes).length === 0 || hasAttribute(userAttributes, attributes));
+    const isAuthorized = checkIfAuthorized(
+        accessControl,
+        {
+            attributes,
+            roles,
+            permissions,
+        },
+        strictness
+    );
 
     return isAuthorized ? children : fallback;
 };

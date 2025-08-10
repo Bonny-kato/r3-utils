@@ -1,4 +1,4 @@
-import { z, ZodSchema, ZodString } from "zod";
+import { RawCreateParams, Schema, z, ZodSchema, ZodString } from "zod";
 
 /**
  * Schema definition for pagination data.
@@ -44,7 +44,10 @@ type RefinementContext = z.RefinementCtx;
  * specified error message.
  */
 export const createOptionalRefinement =
-    <T>(schema: z.ZodType<T>, errorMessage: string): z.RefinementEffect<T>["refinement"] =>
+    <T>(
+        schema: z.ZodType<T>,
+        errorMessage: string
+    ): z.RefinementEffect<T>["refinement"] =>
     (value, ctx: RefinementContext) => {
         if (value && !schema.safeParse(value).success) {
             ctx.addIssue({
@@ -85,7 +88,9 @@ export const ApiListSchema = <T extends z.ZodType>(schema: T) => {
  * @param {T} schema - A ZodType indicating the schema that the `data` property should adhere to.
  * @returns {z.ZodObject<{ data: T }>} - A ZodObject schema with a `data` property based on the provided schema.
  */
-export const ApiDetailsSchema = <T extends z.ZodType>(schema: T): z.ZodObject<{ data: T }> => {
+export const ApiDetailsSchema = <T extends z.ZodType>(
+    schema: T
+): z.ZodObject<{ data: T }> => {
     return z.object({
         data: schema,
     });
@@ -132,7 +137,10 @@ export const SelectOptionSchema = z.object({
     value: z.coerce
         .number({ message: "value must be a number" })
         .or(z.coerce.string({ message: "value must be a string" })),
-    selected: z.boolean({ message: "selected must be a boolean" }).optional().default(false),
+    selected: z
+        .boolean({ message: "selected must be a boolean" })
+        .optional()
+        .default(false),
 });
 
 export type SelectInputOptionType = z.infer<typeof SelectOptionSchema>;
@@ -171,10 +179,9 @@ const TZ_MOBILE_NO_REGEX = /^(\+?255|0)[6-9]\d{8}$/;
  * Validation Error:
  * - If the input does not match the Tanzanian mobile number format, the validation error message "invalid phone number" will be raised.
  */
-export const TanzaniaMobileNumberSchema = NoneEmptyStringSchema("phoneNumber").regex(
-    TZ_MOBILE_NO_REGEX,
-    { message: "invalid phone number" }
-);
+export const TanzaniaMobileNumberSchema = NoneEmptyStringSchema(
+    "phoneNumber"
+).regex(TZ_MOBILE_NO_REGEX, { message: "invalid phone number" });
 
 //--------------------------------------------------------------
 
@@ -187,11 +194,17 @@ export const TanzaniaMobileNumberSchema = NoneEmptyStringSchema("phoneNumber").r
  * for email formatting. If an invalid email is provided, the schema will
  * respond with a validation error.
  */
-export const OptionalEmailSchema = z
-    .string()
-    .optional()
-    .default("")
-    .superRefine(createOptionalRefinement(z.string().email(), "Invalid email address"));
+export const OptionalEmailSchema = (label?: string) =>
+    z
+        .string({ message: `${label} must be a string` })
+        .optional()
+        .default("")
+        .superRefine(
+            createOptionalRefinement(
+                z.string().email(),
+                `Invalid email address for ${label}`
+            )
+        );
 
 //--------------------------------------------------------------
 
@@ -206,6 +219,35 @@ export const OptionalEmailSchema = z
  */
 export const PositiveNumberSchema = z.coerce
     .number({ message: `field must be a number` })
-    .nonnegative({ message: `field must be a non-negative number` });
+    .positive({ message: `field must be a non-negative number` });
 
 //--------------------------------------------------------------
+
+/**
+ * Schema definition for the structure of an object that includes a label and a value.
+ * The schema validates the following properties:
+ *
+ * - label: A non-empty string. The specific validation is defined by the `NoneEmptyStringSchema` function using "label" as a parameter.
+ * - value: Can be a string, number, or boolean. The value type is validated using a union schema.
+ *
+ * Used to ensure strict validation of objects matching the label and value structure.
+ */
+export const LabelAndValueSchema = z.object({
+    label: NoneEmptyStringSchema("label"),
+    value: z.union([z.string(), z.number(), z.boolean()]),
+});
+
+// ---------------------------------------------------------------
+
+/**
+ * Creates a Zod array schema ensuring at least one item of a specified schema type.
+ * @param schema - Zod schema for array items
+ * @param params - Optional raw create parameters
+ * @returns Zod array schema with min 1 item
+ */
+export const AtLeastOneArrayItemSchema = <T extends Schema>(
+    schema: T,
+    params?: RawCreateParams
+) => {
+    return z.array(schema, params).min(1);
+};

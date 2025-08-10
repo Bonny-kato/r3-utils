@@ -173,12 +173,16 @@ export class Auth<User extends UserIdentifier> {
     };
 
     /**
-     * Logs out the current user, clears their session, and redirects to the login page.
+     * Logs out the current user, clears their session, and redirects to the specified URL.
      *
      * @param {Request} request - The incoming client request object, containing session and user information.
-     * @return {Promise<Response>} A response object containing the redirection to the login page and updated headers with the destroyed session cookie.
+     * @param {string} [redirectUrl] - Optional URL to redirect to after logout. If not provided, redirects to the login page.
+     * @return {Promise<Response>} A response object containing the redirection and updated headers with the destroyed session cookie.
      */
-    async logoutAndRedirect(request: Request): Promise<Response> {
+    async logoutAndRedirect(
+        request: Request,
+        redirectUrl?: string
+    ): Promise<Response> {
         const session = await this.getSession(request);
         const userId = await this.getUserId(request);
 
@@ -186,7 +190,7 @@ export class Auth<User extends UserIdentifier> {
             await this.#storageAdapter.remove(userId);
         }
 
-        return redirect(this.#loginPageUrl, {
+        return redirect(redirectUrl ?? this.#loginPageUrl, {
             headers: {
                 "Set-Cookie": await this.sessionStorage.destroySession(session),
             },
@@ -212,20 +216,12 @@ export class Auth<User extends UserIdentifier> {
         const user = (await this.requireUserOrRedirect(request)) as never as T;
 
         if (!user.token) {
-            throw new Error("User doesn't have a token");
+            throw new Error(
+                "Authenticated user lacks the required token property"
+            );
         }
 
         return user.token;
-    }
-    // Todo: Remove this function
-    /**
-     * Gets the user ID if the user is authenticated, or null otherwise.
-     *
-     * @param request - The current request
-     * @returns The user ID if authenticated, null otherwise
-     */
-    async getUserIdOrNull(request: Request): Promise<string | null> {
-        return this.getUserId(request);
     }
 
     async getAuthUsers(request: Request) {

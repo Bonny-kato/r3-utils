@@ -1,4 +1,3 @@
-// Import and re-export specific functions, types, and components for better tree shaking
 import AccessControl from "./access-control";
 import { hasAttribute, hasPermission, hasRole } from "./access-control-helpers";
 import {
@@ -11,16 +10,15 @@ import {
     MenuItemAccess,
     MenuItemConfig,
 } from "./generate-menu-access-control";
+import { generateUserAccessControlConfig } from "./generate-user-access-control-config";
+import { checkAccess, requireAccess } from "./require-access";
 import {
+    AccessControlConfig,
+    AccessControlStrictnessOptions,
+    AuthUser,
     GenerateAccessControlConfigFunc,
-    generateUserAccessControlConfig,
-} from "./generate-user-access-control-config";
-import {
-    checkAccess,
-    requireAccess,
-    UnauthorizedError,
-} from "./require-access";
-import { AccessControlConfig, AuthUser, UserAccessControl } from "./type";
+    UserAccessControl,
+} from "./type";
 import { useHasAccess } from "./use-has-access";
 
 export {
@@ -33,12 +31,13 @@ export {
     hasPermission,
     hasRole,
     requireAccess,
-    UnauthorizedError,
     useAccessControl,
     useHasAccess,
 };
+
 export type {
     AccessControlConfig,
+    AccessControlStrictnessOptions,
     AuthUser,
     GenerateAccessControlConfigFunc,
     MenuConfig,

@@ -60,20 +60,17 @@ export function requiredIn(
 /**
  * Shorthand for requiring a variable in production environment
  */
-export const requiredInProduction: z.RefinementEffect<string | undefined | boolean>["refinement"] =
-    requiredIn(["production"]);
+export const requiredInProduction = requiredIn(["production"]);
 
 /**
  * Shorthand for requiring a variable in development environment
  */
-export const requiredInDevelopment: z.RefinementEffect<string | undefined | boolean>["refinement"] =
-    requiredIn(["development"]);
+export const requiredInDevelopment = requiredIn(["development"]);
 
 /**
  * Shorthand for requiring a variable in both production and development environments
  */
-export const requiredInProdAndDev: z.RefinementEffect<string | undefined | boolean>["refinement"] =
-    requiredIn(["production", "development"]);
+export const requiredInProdAndDev = requiredIn(["production", "development"]);
 
 /**
  * Validates environment variables against a schema
@@ -155,7 +152,9 @@ export const createEnvSchema = <T extends CreateEnvSchema>(envVars: T) => {
                 );
                 break;
             case "number":
-                schema = z.preprocess((val) => Number(val), z.number()).optional();
+                schema = z
+                    .preprocess((val) => Number(val), z.number())
+                    .optional();
                 break;
             case "string":
             default:

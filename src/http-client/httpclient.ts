@@ -104,6 +104,7 @@ export class HttpClient {
         });
     };
 
+    // Todo: Accept data as optional see https://www.rfc-editor.org/rfc/rfc9110.html#name-delete
     /**
      * Makes a DELETE request to the specified endpoint
      * @param endpoint - API endpoint path

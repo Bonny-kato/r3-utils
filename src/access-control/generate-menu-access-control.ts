@@ -1,21 +1,38 @@
-import { AccessControlConfig, AuthUser, UserAccessControl } from './type';
-import { hasAttribute, hasPermission, hasRole } from './access-control-helpers';
+import { typedKeys } from "../utils/typed-keys";
+import { checkIfAuthorized } from "./access-control-helpers";
+import {
+    AccessControlConfig,
+    AccessControlStrictnessOptions,
+    AuthUser,
+    UserAccessControl,
+} from "./type";
 
 /**
  * Configuration for a menu item with access control requirements
- * 
+ *
  * @template T - Type that extends AuthUser
  */
-export interface MenuItemConfig<T extends AuthUser = AuthUser> {
+export interface MenuItemConfig<TUser extends AuthUser = AuthUser> {
     /**
      * Access control requirements for this menu item
      */
-    accessControl: UserAccessControl<T>;
-
+    accessControl: UserAccessControl<TUser>;
     /**
      * Link or path to the menu item
      */
     link: string;
+    /**
+     * Controls how access requirements are validated. When true, all items in the respective
+     * category (roles/permissions/attributes) must be present. When false, only one item needs
+     * to match. Uses Array.every() for true and Array.some() for false.
+     *
+     * @default {
+     *     attributes: false,
+     *     permissions: false,
+     *     roles:false
+     * }
+     */
+    strictness?: AccessControlStrictnessOptions;
 }
 
 /**
@@ -38,69 +55,84 @@ export interface MenuItemAccess {
  * @template S - Type that extends string, representing the menu section names
  * @template T - Type that extends AuthUser
  */
-export type MenuConfig<S extends string, T extends AuthUser = AuthUser> = Record<S, MenuItemConfig<T>[]>;
+export type MenuConfig<
+    TMenu extends string,
+    TUser extends AuthUser = AuthUser,
+> = Record<TMenu, MenuItemConfig<TUser>[]>;
+
+type MenuAccessResult<TMenu extends string> = Record<TMenu, MenuItemAccess>;
 
 /**
- * Checks if the user has the required access for a menu item
+ * Internal helper function that determines access for a specific menu item configuration.
+ * Finds the first menu item that the user has access to based on their access control configuration.
  *
- * @template T - Type that extends AuthUser
- * @param {AccessControlConfig<T>} accessControlConfig - The access control configuration
- * @param {UserAccessControl<T>} accessControl - The access control requirements
- * @returns {boolean} Whether the user has the required access
+ * @template TUser - Type that extends AuthUser
+ * @param userAccess - The user's access control configuration
+ * @param menuItemConfig - Array of menu item configurations to check against
+ * @returns Object containing access status and link information
  */
-const checkRequiredAccess = <T extends AuthUser>(
-    accessControlConfig: AccessControlConfig<T>,
-    { roles = [], permissions = [], attributes = {} }: UserAccessControl<T>
-): boolean => {
-    const { userPermissions, userAttributes, userRoles } = accessControlConfig;
-
-    return (
-        (roles.length === 0 || hasRole(userRoles, roles)) &&
-        (permissions.length === 0 || hasPermission(userPermissions, permissions)) &&
-        (Object.keys(attributes).length === 0 || hasAttribute<T>(userAttributes, attributes))
-    );
-};
-
-/**
- * Determines the accessibility of menu items based on the user's access control configuration.
- *
- * @template T - Type that extends AuthUser
- * @param {AccessControlConfig<T>} accessControlConfig - The access control settings for the user, including permissions, attributes, and roles.
- * @param {MenuItemConfig<T>[]} menuAccessConfigs - Array of menu item configurations that define access control requirements.
- * @returns {MenuItemAccess} - An object containing access status and the link of an accessible menu item if available.
- */
-const getMenuAccess = <T extends AuthUser>(
-    accessControlConfig: AccessControlConfig<T>,
-    menuAccessConfigs: MenuItemConfig<T>[]
+const getMenuAccess = <TUser extends AuthUser>(
+    userAccess: AccessControlConfig<TUser>,
+    menuItemConfig: MenuItemConfig<TUser>[]
 ): MenuItemAccess => {
-    const accessibleMenuItem = menuAccessConfigs.find(({ accessControl }) =>
-        checkRequiredAccess<T>(accessControlConfig, accessControl)
+    const accessibleMenuItem = menuItemConfig.find(
+        ({ accessControl, strictness }) => {
+            return checkIfAuthorized(userAccess, accessControl, strictness);
+        }
     );
 
     return {
         hasAccess: !!accessibleMenuItem,
-        link: accessibleMenuItem ? accessibleMenuItem.link : '',
+        link: accessibleMenuItem ? accessibleMenuItem.link : "",
     };
 };
 
 /**
- * Generates a record of menu item access based on the provided access control and menu configurations.
+ * Generates menu access information for all menu sections based on user's access control configuration.
+ * This function evaluates each menu section and determines which items the user can access.
  *
- * @template S - A generic type parameter that extends string, representing the keys in the menu configuration.
- * @template T - Type that extends AuthUser
- * @param {AccessControlConfig<T>} accessControlConfig - Configuration object that defines access control rules.
- * @param {MenuConfig<S, T>} menuConfig - Configuration object that defines the menu structure and items.
- * @returns {Record<S, MenuItemAccess>} A record where each key corresponds to a menu item and the value represents access details for that item.
+ * @template TMenu - String literal type representing menu section names
+ * @template TUser - Type that extends AuthUser
+ * @param accessControlConfig - The user's access control configuration containing roles, permissions, and attributes
+ * @param menuConfig - Configuration object mapping menu section names to their respective menu items
+ * @returns Object mapping each menu section to its access status and available link
+ *
+ * @example
+ * ```typescript
+ * const menuConfig: MenuConfig<'dashboard' | 'admin' | 'reports', AppUser> = {
+ *   dashboard: [
+ *     { accessControl: { roles: ['user'] }, link: '/dashboard' }
+ *   ],
+ *   admin: [
+ *     { accessControl: { roles: ['admin'] }, link: '/admin' },
+ *     { accessControl: { permissions: ['admin:read'] }, link: '/admin/readonly' }
+ *   ],
+ *   reports: [
+ *     { accessControl: { attributes: { department: 'finance' } }, link: '/reports' }
+ *   ]
+ * };
+ *
+ * const userAccess = generateUserAccessControlConfig(currentUser);
+ * const menuAccess = generateMenuAccess(userAccess, menuConfig);
+ *
+ * // Result: { dashboard: { hasAccess: true, link: '/dashboard' }, admin: { hasAccess: false, link: '' }, ... }
+ * ```
  */
-export const generateMenuAccess = <S extends string, T extends AuthUser = AuthUser>(
-    accessControlConfig: AccessControlConfig<T>,
-    menuConfig: MenuConfig<S, T>
-): Record<S, MenuItemAccess> => {
-    return Object.entries(menuConfig).reduce(
-        (acc, [key, configs]) => {
-            acc[key as S] = getMenuAccess<T>(accessControlConfig, configs as MenuItemConfig<T>[]);
-            return acc;
-        },
-        {} as Record<S, MenuItemAccess>
-    );
+export const generateMenuAccess = <
+    TMenu extends string,
+    TUser extends AuthUser = AuthUser,
+>(
+    accessControlConfig: AccessControlConfig<TUser>,
+    menuConfig: MenuConfig<TMenu, TUser>
+) => {
+    const menuAccessResult = {} as MenuAccessResult<TMenu>;
+
+    for (const menu of typedKeys(menuConfig)) {
+        menuAccessResult[menu] = getMenuAccess<TUser>(
+            accessControlConfig,
+            menuConfig[menu]
+        );
+    }
+
+    return menuAccessResult;
 };
