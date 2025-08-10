@@ -1,28 +1,34 @@
 import { createContext, JSX, ReactNode, useContext } from "react";
 import { AccessControlConfig, AuthUser } from "./type";
 
-/**
- * Type for the access control context
- * @template T - Type that extends AuthUser
- */
 type AccessControlContextType<T extends AuthUser = AuthUser> =
     AccessControlConfig<T> | null;
 
-/**
- * React context for access control configuration
- * Using Record<string, any> as a workaround for TypeScript's limitation with generic context
- */
 const AccessControlContext = createContext<AccessControlContextType>(null);
 
 /**
- * Provider component for access control
- * Makes the access control configuration available to all child components
+ * React context provider that supplies access control configuration to child components.
+ * This provider must wrap any components that use access control functionality.
  *
  * @template T - Type that extends AuthUser
- * @param {Object} props - Component props
- * @param {AccessControlConfig<T>} props.accessControlConfig - The access control configuration
- * @param {ReactNode} props.children - Child components
- * @returns {JSX.Element} Provider component
+ * @param props - The provider props
+ * @param props.accessControlConfig - The access control configuration containing user roles, permissions, and attributes
+ * @param props.children - Child components that will have access to the access control context
+ * @returns JSX element that provides access control context to its children
+ *
+ * @example
+ * ```tsx
+ * const userAccessConfig = generateUserAccessControlConfig(currentUser);
+ *
+ * function App() {
+ *   return (
+ *     <AccessControlProvider accessControlConfig={userAccessConfig}>
+ *       <Dashboard />
+ *       <UserProfile />
+ *     </AccessControlProvider>
+ *   );
+ * }
+ * ```
  */
 export const AccessControlProvider = <T extends AuthUser>({
     accessControlConfig,
@@ -39,11 +45,26 @@ export const AccessControlProvider = <T extends AuthUser>({
 };
 
 /**
- * Custom hook to access the AccessControlContext.
+ * React hook that provides access to the current user's access control configuration.
+ * Must be used within an AccessControlProvider context.
  *
  * @template T - Type that extends AuthUser
- * @throws Will throw an error if used outside an AccessControlProvider.
- * @returns {AccessControlConfig<T>} - The access control configuration.
+ * @returns The access control configuration containing user roles, permissions, and attributes
+ * @throws Error if used outside of AccessControlProvider context
+ *
+ * @example
+ * ```tsx
+ * function UserDashboard() {
+ *   const { userRoles, userPermissions, userAttributes } = useAccessControl<AppUser>();
+ *
+ *   return (
+ *     <div>
+ *       <h1>Welcome, {userAttributes.name}</h1>
+ *       <p>Your roles: {userRoles.join(', ')}</p>
+ *     </div>
+ *   );
+ * }
+ * ```
  */
 export const useAccessControl = <
     T extends AuthUser,

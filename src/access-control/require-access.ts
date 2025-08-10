@@ -1,66 +1,119 @@
-import { AuthUser, UserAccessControl } from './type';
-import { hasAttribute, hasPermission, hasRole } from './access-control-helpers';
-import { generateUserAccessControlConfig } from './generate-user-access-control-config';
+import { HTTP_FORBIDDEN } from "../constants";
+import { throwCustomError } from "../utils";
+import { checkIfAuthorized } from "./access-control-helpers";
+import { generateUserAccessControlConfig } from "./generate-user-access-control-config";
+import { AuthUser, RequireAccessOptions, UserAccessControl } from "./type";
 
 /**
- * Error class for unauthorized access
- */
-export class UnauthorizedError extends Error {
-    /**
-     * Creates a new UnauthorizedError
-     *
-     * @param {string} message - Error message
-     */
-    constructor(message = 'Unauthorized') {
-        super(message);
-        this.name = 'UnauthorizedError';
-    }
-}
-
-/**
- * Verifies that the user has the necessary access based on roles, permissions, and attributes.
+ * Checks if a user has the required access based on their roles, permissions, and attributes.
+ * This is a convenience function that combines user access control config generation with authorization checking.
  *
- * @template T - Type that extends AuthUser
- * @param {T} user - The user object.
- * @param {UserAccessControl<T>} userAccessControl - Access control requirements.
- * @param {string[]} [userAccessControl.roles=[]] - List of roles that are allowed access.
- * @param {string[]} [userAccessControl.permissions=[]] - List of permissions required for access.
- * @param {UserAttribute<T>} [userAccessControl.attributes={}] - Additional attributes required for access.
+ * @template TUser - Type that extends AuthUser
+ * @param user - The user object to check access for
+ * @param requiredAccess - The access requirements (roles, permissions, attributes) that need to be satisfied
+ * @param strictnessOptions - Options to control strictness for each access type (default: {})
+ * @returns True if the user has the required access, false otherwise
  *
- * @returns {boolean} True if the user has access, false otherwise.
+ * @example
+ * ```typescript
+ * const user: AppUser = {
+ *   id: '123',
+ *   roles: [{ name: 'EDITOR', permissions: ['read:posts', 'write:posts'] }],
+ *   department: 'content'
+ * };
+ *
+ * const requiredAccess: UserAccessControl<AppUser> = {
+ *   roles: ['editor'],
+ *   permissions: ['write:posts']
+ * };
+ *
+ * // Check with default (non-strict) options
+ * const hasAccess = checkAccess(user, requiredAccess); // true
+ *
+ * // Check with strict role checking
+ * const hasStrictAccess = checkAccess(user, requiredAccess, { roles: true }); // true
+ * ```
  */
-export const checkAccess = <T extends AuthUser>(
-    user: T,
-    { roles = [], permissions = [], attributes = {} }: UserAccessControl<T>
+export const checkAccess = <TUser extends AuthUser>(
+    user: TUser,
+    requiredAccess: UserAccessControl<TUser>,
+    strictnessOptions = {}
 ): boolean => {
-    const { userRoles, userPermissions, userAttributes } = generateUserAccessControlConfig<T>(user);
+    const accessControlConfig = generateUserAccessControlConfig<TUser>(user);
 
-    return (
-        (roles.length === 0 || hasRole(userRoles, roles)) &&
-        (permissions.length === 0 || hasPermission(userPermissions, permissions)) &&
-        (Object.keys(attributes).length === 0 || hasAttribute<T>(userAttributes, attributes))
+    return checkIfAuthorized<TUser>(
+        accessControlConfig,
+        requiredAccess,
+        strictnessOptions
     );
 };
 
+// ----------------------------------------------------------------------
+
 /**
- * Verifies that the user has the necessary access based on roles, permissions, and attributes.
- * Throws an UnauthorizedError if the user doesn't have access.
+ * Enforces access control by checking if a user has the required access and throwing an error if not.
+ * This function is useful for protecting API endpoints or sensitive operations where access must be guaranteed.
  *
  * @template T - Type that extends AuthUser
- * @param {T} user - The user object.
- * @param {UserAccessControl<T>} accessControl - Access control requirements.
- * @param {string[]} [accessControl.roles=[]] - List of roles that are allowed access.
- * @param {string[]} [accessControl.permissions=[]] - List of permissions required for access.
- * @param {UserAttribute<T>} [accessControl.attributes={}] - Additional attributes required for access.
+ * @param user - The user object to check access for
+ * @param accessControl - The access requirements (roles, permissions, attributes) that must be satisfied
+ * @param options - Configuration options for access control behavior
+ * @param options.strictness - Strictness configuration for different access control types
+ * @param options.unauthorizedErrorMessage - Custom error message when access is denied
+ * @returns The original user object if access is granted
+ * @throws Error with HTTP_FORBIDDEN status if access is denied
  *
- * @returns {T} The user object if access is granted.
+ * @example
+ * ```typescript
+ * // Basic usage - protect an admin-only operation
+ * function deleteUser(currentUser: AppUser, targetUserId: string) {
+ *   requireAccess(currentUser, { roles: ['admin'] });
+ *   // This code only runs if user has admin role
+ *   return userService.delete(targetUserId);
+ * }
  *
- * @throws Will throw UnauthorizedError if the user doesn't have the necessary access.
+ * // With custom error message and strict checking
+ * function accessFinancialReports(currentUser: AppUser) {
+ *   requireAccess(
+ *     currentUser,
+ *     {
+ *       roles: ['finance-manager', 'cfo'],
+ *       attributes: { isActive: true, department: 'finance' }
+ *     },
+ *     {
+ *       strictness: { attributes: true },
+ *       unauthorizedErrorMessage: 'Access to financial reports requires finance department membership'
+ *     }
+ *   );
+ *   return financialService.getReports();
+ * }
+ *
+ * // Usage in API endpoint
+ * app.post('/api/admin/users', (req, res) => {
+ *   try {
+ *     requireAccess(req.user, { permissions: ['create:users'] });
+ *     // Protected operation continues here
+ *   } catch (error) {
+ *     // Error is automatically thrown with HTTP_FORBIDDEN status
+ *   }
+ * });
+ * ```
  */
-export const requireAccess = <T extends AuthUser>(user: T, accessControl: UserAccessControl<T>): T => {
-    const hasAccess = checkAccess<T>(user, accessControl);
+export const requireAccess = <T extends AuthUser>(
+    user: T,
+    accessControl: UserAccessControl<T>,
+    options = {} as RequireAccessOptions
+): T => {
+    const {
+        strictness,
+        unauthorizedErrorMessage = "You're not authorized to access this resources",
+    } = options;
 
-    if (!hasAccess) throw new UnauthorizedError();
+    const hasAccess = checkAccess<T>(user, accessControl, strictness);
+
+    if (!hasAccess) {
+        throwCustomError(unauthorizedErrorMessage, HTTP_FORBIDDEN);
+    }
 
     return user;
 };

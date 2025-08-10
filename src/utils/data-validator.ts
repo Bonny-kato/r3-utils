@@ -16,7 +16,10 @@ type ValidateData<T> = {
  * @param {ZodSchema} schema - The schema to validate against.
  * @returns {ValidateData} - An object containing the validated data and any validation errors.
  */
-const validateData = <TData = unknown>(data: TData, schema: ZodSchema): ValidateData<TData> => {
+const validateData = <TData = unknown>(
+    data: TData,
+    schema: ZodSchema
+): ValidateData<TData> => {
     try {
         const validData = schema.parse(data) as TData;
         return { data: validData, errors: null };
@@ -24,15 +27,19 @@ const validateData = <TData = unknown>(data: TData, schema: ZodSchema): Validate
         const errors = e as ZodError;
         return {
             data,
-            errors: errors?.issues?.reduce((acc: FormDataError<TData>, curr) => {
-                const key = curr.path[0] as keyof TData;
-                acc[key] = curr.message;
-                return acc;
-            }, {}),
+            errors: errors?.issues?.reduce(
+                (acc: FormDataError<TData>, curr) => {
+                    const key = curr.path[0] as keyof TData;
+                    acc[key] = curr.message;
+                    return acc;
+                },
+                {}
+            ),
         };
     }
 };
 
+// Todo improve typing , return only none nullish values
 /**
  * Removes nullish values from the input.
  *
@@ -68,11 +75,19 @@ export const removeNullish = <T>(input: T): T => {
  * @throws Will throw an error if the data does not align with the provided schema.
  * @returns {TData} - The parsed and validated data that aligns with the provided schema.
  */
-export const validateApiResponse = <TData = unknown>(data: unknown, schema: ZodSchema): TData => {
-    const { errors, data: parsedData } = validateData(removeNullish(data), schema);
+export const validateApiResponse = <TData = unknown>(
+    data: unknown,
+    schema: ZodSchema
+): TData => {
+    const { errors, data: parsedData } = validateData(
+        removeNullish(data),
+        schema
+    );
 
     if (checkIsDevMode()) {
-        console.log("[///////////////////////////////////////////////////////////////]");
+        console.log(
+            "[///////////////////////////////////////////////////////////////]"
+        );
         console.log("[INVALID DATA]", errors);
     }
 

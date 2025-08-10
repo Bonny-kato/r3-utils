@@ -44,7 +44,10 @@ type RefinementContext = z.RefinementCtx;
  * specified error message.
  */
 export const createOptionalRefinement =
-    <T>(schema: z.ZodType<T>, errorMessage: string): z.RefinementEffect<T>["refinement"] =>
+    <T>(
+        schema: z.ZodType<T>,
+        errorMessage: string
+    ): z.RefinementEffect<T>["refinement"] =>
     (value, ctx: RefinementContext) => {
         if (value && !schema.safeParse(value).success) {
             ctx.addIssue({
@@ -85,7 +88,9 @@ export const ApiListSchema = <T extends z.ZodType>(schema: T) => {
  * @param {T} schema - A ZodType indicating the schema that the `data` property should adhere to.
  * @returns {z.ZodObject<{ data: T }>} - A ZodObject schema with a `data` property based on the provided schema.
  */
-export const ApiDetailsSchema = <T extends z.ZodType>(schema: T): z.ZodObject<{ data: T }> => {
+export const ApiDetailsSchema = <T extends z.ZodType>(
+    schema: T
+): z.ZodObject<{ data: T }> => {
     return z.object({
         data: schema,
     });
@@ -132,7 +137,10 @@ export const SelectOptionSchema = z.object({
     value: z.coerce
         .number({ message: "value must be a number" })
         .or(z.coerce.string({ message: "value must be a string" })),
-    selected: z.boolean({ message: "selected must be a boolean" }).optional().default(false),
+    selected: z
+        .boolean({ message: "selected must be a boolean" })
+        .optional()
+        .default(false),
 });
 
 export type SelectInputOptionType = z.infer<typeof SelectOptionSchema>;
@@ -171,10 +179,9 @@ const TZ_MOBILE_NO_REGEX = /^(\+?255|0)[6-9]\d{8}$/;
  * Validation Error:
  * - If the input does not match the Tanzanian mobile number format, the validation error message "invalid phone number" will be raised.
  */
-export const TanzaniaMobileNumberSchema = NoneEmptyStringSchema("phoneNumber").regex(
-    TZ_MOBILE_NO_REGEX,
-    { message: "invalid phone number" }
-);
+export const TanzaniaMobileNumberSchema = NoneEmptyStringSchema(
+    "phoneNumber"
+).regex(TZ_MOBILE_NO_REGEX, { message: "invalid phone number" });
 
 //--------------------------------------------------------------
 
@@ -187,11 +194,17 @@ export const TanzaniaMobileNumberSchema = NoneEmptyStringSchema("phoneNumber").r
  * for email formatting. If an invalid email is provided, the schema will
  * respond with a validation error.
  */
-export const OptionalEmailSchema = (label?:string) =>  z
-    .string({message:`${label} must be a string`})
-    .optional()
-    .default("")
-    .superRefine(createOptionalRefinement(z.string().email(), `Invalid email address for ${label}`));
+export const OptionalEmailSchema = (label?: string) =>
+    z
+        .string({ message: `${label} must be a string` })
+        .optional()
+        .default("")
+        .superRefine(
+            createOptionalRefinement(
+                z.string().email(),
+                `Invalid email address for ${label}`
+            )
+        );
 
 //--------------------------------------------------------------
 
@@ -204,8 +217,8 @@ export const OptionalEmailSchema = (label?:string) =>  z
  * This schema is useful for validating numeric data that is required to be positive or zero while
  * gracefully handling non-numeric inputs.
  */
-export const PositiveNumberSchema = (label:string) => z.coerce
-    .number({ message: `${label} must be a number` })
+export const PositiveNumberSchema = z.coerce
+    .number({ message: `field must be a number` })
     .positive({ message: `field must be a non-negative number` });
 
 //--------------------------------------------------------------

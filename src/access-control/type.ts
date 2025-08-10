@@ -5,6 +5,8 @@
  * and permission-based access control in applications.
  */
 
+import { ErrorType } from "../http-client/try-catch-http";
+
 /**
  * Interface representing a user role with associated permissions.
  *
@@ -44,19 +46,13 @@ export interface UserRole {
  */
 export interface AuthUser {
     /** Unique identifier for the user */
-    id: string;
+    id: string | number;
 
     /**
      * The roles assigned to the user.
      * Each role has a name and associated permissions.
      */
     roles: UserRole[];
-
-    /**
-     * Additional user properties can be added through extension
-     * or using the index signature.
-     */
-    [key: string]: any;
 }
 
 /**
@@ -80,7 +76,9 @@ export type AuthUserWithoutRoles<T extends AuthUser> = Omit<T, "roles">;
  * };
  * ```
  */
-export type UserAttribute<T extends AuthUser = AuthUser> = Partial<AuthUserWithoutRoles<T>>;
+export type UserAttribute<T extends AuthUser = AuthUser> = Partial<
+    AuthUserWithoutRoles<T>
+>;
 
 /**
  * Extracts the possible role names from a user type.
@@ -98,7 +96,8 @@ export type RoleNames<T extends AuthUser> = T["roles"][number]["name"];
  *
  * @template T - Type that extends AuthUser
  */
-export type AllPermissions<T extends AuthUser> = T["roles"][number]["permissions"][number];
+export type AllPermissions<T extends AuthUser> =
+    T["roles"][number]["permissions"][number];
 
 /**
  * Creates a union type of all unique permission strings from a user type.
@@ -174,10 +173,61 @@ export interface AccessControlConfig<T extends AuthUser = AuthUser> {
     userRoles: RoleNames<T>[];
 }
 
-export interface ActionErrorType<T = unknown> {
-    /** Optional data associated with the error */
-    data?: T;
+/**
+ * Interface for action error types with optional data and error message.
+ * Used for standardized error handling in access control operations.
+ *
+ * @template T - Type of the optional data associated with the error
+ */
+export type ActionErrorType<
+    TPayload = unknown,
+    TError extends ErrorType = ErrorType,
+> = [error: TError, payload: TPayload];
+/**
+ * Configuration options for controlling strictness in access control checks.
+ * When set to true, the corresponding check requires ALL conditions to be met.
+ * When set to false or undefined, only ONE condition needs to be met.
+ *
+ * @example
+ * ```typescript
+ * const strictOptions: AccessControlStrictnessOptions = {
+ *   roles: true,        // User must have ALL required roles
+ *   permissions: false, // User needs at least ONE required permission
+ *   attributes: true    // User must match ALL required attributes
+ * };
+ * ```
+ */
+export type AccessControlStrictnessOptions = {
+    /** If true, user must have ALL required attributes. If false, user needs at least ONE. */
+    attributes?: boolean;
+    /** If true, user must have ALL required permissions. If false, user needs at least ONE. */
+    permissions?: boolean;
+    /** If true, user must have ALL required roles. If false, user needs at least ONE. */
+    roles?: boolean;
+};
 
-    /** Descriptive error message providing details about the error */
-    errorMessage?: string;
-}
+/**
+ * Options for the requireAccess function to customize access control behavior.
+ *
+ * @example
+ * ```typescript
+ * const options: RequireAccessOptions = {
+ *   strictness: { roles: true, permissions: false },
+ *   unauthorizedErrorMessage: 'Access denied: insufficient privileges'
+ * };
+ * ```
+ */
+export type RequireAccessOptions = {
+    /** Strictness configuration for different access control types */
+    strictness?: AccessControlStrictnessOptions;
+    /** Custom error message to display when access is denied */
+    unauthorizedErrorMessage?: string;
+};
+
+/**
+ * Type for the generateUserAccessControlConfig function
+ * Allows consumers to provide their own user type that extends AuthUser
+ */
+export type GenerateAccessControlConfigFunc<T extends AuthUser> = (
+    user?: T
+) => AccessControlConfig<T>;
