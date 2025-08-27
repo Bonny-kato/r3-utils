@@ -89,3 +89,4 @@ function handleNetworkError(error) {
 3. **Consistent Error Handling**: Use these constants consistently across your application for error handling to ensure a uniform approach.
 
 4. **Documentation**: When using these constants in error handling logic, add comments to explain the specific scenarios being handled.
+

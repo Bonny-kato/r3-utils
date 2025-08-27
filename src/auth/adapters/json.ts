@@ -1,9 +1,10 @@
 import SimpleDB from "@bonnykato/simple-db";
-import {
+import type {
     AuthStorageAdapter,
     UserId,
     UserIdentifier,
-} from "../auth-storage-adapter";
+} from "~/auth/auth-storage-adapter";
+import { tryCatch } from "~/utils";
 
 /**
  * JSON file-based implementation of the AuthStorageAdapter interface.
@@ -42,8 +43,14 @@ export class JsonStorageAdapter<User extends UserIdentifier>
      * @param userId - The ID of the user to retrieve
      * @returns A promise that resolves to the user data if found, or undefined if not found
      */
-    async get(userId: UserId): Promise<User | undefined> {
-        return this.dbClient.getByID(String(userId));
+    async get(userId: UserId) {
+        return tryCatch(async () => {
+            const storedUser = await this.dbClient.getByID(String(userId));
+            if (storedUser) {
+                return storedUser as never as User;
+            }
+            return null;
+        });
     }
 
     /**
@@ -51,8 +58,11 @@ export class JsonStorageAdapter<User extends UserIdentifier>
      *
      * @returns A promise that resolves to an array of all user data
      */
-    getAll(): Promise<User[]> {
-        return this.dbClient.getAll();
+    getAll() {
+        return tryCatch(async () => {
+            const storedUsers = await this.dbClient.getAll();
+            return storedUsers as never as User[];
+        });
     }
 
     /**
@@ -61,8 +71,10 @@ export class JsonStorageAdapter<User extends UserIdentifier>
      * @param userId - The ID of the user to check
      * @returns A promise that resolves to true if the user exists, false otherwise
      */
-    async has(userId: UserId): Promise<boolean> {
-        return Boolean(await this.dbClient.getByID(String(userId)));
+    async has(userId: UserId) {
+        return tryCatch(async () => {
+            return Boolean(await this.dbClient.getByID(String(userId)));
+        });
     }
 
     /**
@@ -71,8 +83,8 @@ export class JsonStorageAdapter<User extends UserIdentifier>
      * @param userId - The ID of the user to remove
      * @returns A promise that resolves when the user has been removed
      */
-    async remove(userId: UserId): Promise<void> {
-        await this.dbClient.delete(String(userId));
+    async remove(userId: UserId) {
+        return tryCatch(() => this.dbClient.delete(String(userId)));
     }
 
     /**
@@ -82,15 +94,22 @@ export class JsonStorageAdapter<User extends UserIdentifier>
      * @param data - The user data to store
      * @returns A promise that resolves when the user has been created or updated
      */
-    async set(userId: UserId, data: User): Promise<void> {
-        const existingUser = await this.dbClient.getByID(String(userId));
+    async set(userId: UserId, data: User) {
+        return tryCatch(async () => {
+            const existingUser = await this.dbClient.getByID(String(userId));
 
-        if (existingUser) {
-            await this.dbClient.delete(String(userId));
-        }
-        await this.dbClient.create({
-            ...data,
-            id: String(userId),
+            if (existingUser) {
+                await this.dbClient.delete(String(userId));
+            }
+            return await this.dbClient.create({
+                ...data,
+                id: String(userId),
+            });
         });
+    }
+
+    async resetExpiration(userId: UserId) {
+        // ⬇️ Will always return true, since there is no implementation yet
+        return tryCatch(() => Promise.resolve(!!userId));
     }
 }

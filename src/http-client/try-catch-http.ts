@@ -1,5 +1,9 @@
-import { AxiosError } from "axios";
-import { HTTP_INTERNAL_SERVER_ERROR, NETWORK_ERROR_CODE } from "../constants";
+import axios, { AxiosError } from "axios";
+import {
+    HTTP_INTERNAL_SERVER_ERROR,
+    HTTP_SERVICE_NOT_AVAILABLE,
+    NETWORK_ERROR_CODE,
+} from "../constants";
 import { checkIsDevMode, tryCatch } from "../utils";
 
 /**
@@ -63,14 +67,14 @@ const extractErrorInfo = async <TError extends ErrorType>(
         console.error("[API Error]:", error);
     }
 
-    if (error instanceof AxiosError) {
+    if (axios.isAxiosError(error)) {
         const errorData = error.response?.data as ErrorType | undefined;
 
         if (isAxiosNetworkError(error)) {
             return {
                 message:
-                    "Unable to connect to the server. Please check your internet connect and try again.",
-                status: HTTP_INTERNAL_SERVER_ERROR,
+                    "Unable to connect to the server. Please check your internet connection and try again.",
+                status: HTTP_SERVICE_NOT_AVAILABLE,
             } as TError;
         }
 

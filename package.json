@@ -47,18 +47,18 @@
     "build": "rimraf dist && vite build && tsc -p tsconfig.dts.json --listEmittedFiles",
     "lint": "eslint --config eslint.config.ts . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest --typecheck",
     "publish": "npm publish --access public",
     "release": "standard-version",
     "prepare": "husky",
     "typecheck": "tsc",
     "lint-staged": "npx lint-staged",
     "prepublishOnly": "pnpm run build",
-    "release:patch": "npm version patch && npm run build && npm publish --access public && git push --follow-tags",
-    "release:minor": "npm version minor && npm run build && npm publish --access public && git push --follow-tags",
-    "release:major": "npm version major && npm run build && npm publish --access public && git push --follow-tags",
-    "release:alpha": "npm version prepatch --preid alpha && npm run build && npm publish --access public --tag alpha && git push --follow-tags",
-    "release:beta": "npm version prepatch --preid beta && pnpm run build && npm publish --access public --tag beta && git push --follow-tags"
+    "release:patch": "npm version patch && npm publish --access public && git push --follow-tags",
+    "release:minor": "npm version minor && npm publish --access public && git push --follow-tags",
+    "release:major": "npm version major && npm publish --access public && git push --follow-tags",
+    "release:alpha": "npm version prepatch --preid alpha  && npm publish --access public --tag alpha && git push --follow-tags",
+    "release:beta": "npm version prepatch --preid beta && npm publish --access public --tag beta && git push --follow-tags"
   },
   "keywords": [
     "react",
@@ -78,7 +78,7 @@
     "url": "https://github.com/Bonny-kato/r3-utils/issues"
   },
   "license": "MIT",
-  "packageManager": "pnpm@10.5.2",
+  "packageManager": "pnpm@10.14.0",
   "peerDependencies": {
     "@bonny-kato/localstorage": "^0.0.2",
     "@bonnykato/simple-db": "^1.0.10",
@@ -101,13 +101,17 @@
     "@commitlint/config-conventional": "^19.8.0",
     "@commitlint/types": "^19.8.0",
     "@eslint/js": "^9.22.0",
+    "@types/axios-mock-adapter": "^1.10.4",
+    "@types/ioredis-mock": "^8.2.6",
     "@types/node": "^22.13.10",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@typescript-eslint/eslint-plugin": "^8.26.1",
     "@typescript-eslint/parser": "^8.26.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "3.2.4",
     "axios": "^1.8.3",
+    "axios-mock-adapter": "^2.1.0",
     "dayjs": "^1.11.13",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.1.1",
@@ -115,19 +119,21 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "husky": "^9.1.7",
     "ioredis": "^5.6.0",
+    "ioredis-mock": "^8.9.0",
     "lint-staged": "^15.5.0",
     "prettier": "^3.5.3",
+    "prettier-plugin-organize-imports": "^4.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.2",
     "react-router": "^7.3.0",
     "remix-toast": "^2.0.0",
     "rimraf": "^6.0.1",
-    "prettier-plugin-organize-imports": "^4.1.0",
     "standard-version": "^9.5.0",
     "tsc-alias": "^1.8.11",
     "typescript": "^5.8.2",
-    "vite": "^6.2.2",
+    "vite": "6.3.4",
+    "vitest": "^3.2.4",
     "zod": "^3.24.2"
   },
   "lint-staged": {
@@ -135,5 +141,8 @@
       "eslint",
       "prettier --write"
     ]
+  },
+  "dependencies": {
+    "vite-tsconfig-paths": "^5.1.4"
   }
 }

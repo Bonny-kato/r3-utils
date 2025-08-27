@@ -1,4 +1,3 @@
-// env-validator.ts
 import * as process from "node:process";
 import { z } from "zod";
 
@@ -18,23 +17,16 @@ export interface EnvValidatorOptions {
     processENV?: object;
 
     /**
-     * If true, will throw error when validation fails.
-     * If false, will only log warnings. Default: true
-     */
-    strict?: boolean;
-
-    /**
      * Custom logger function. Default: console.error
      */
-    logger?: (message: string) => void;
+    errorLogger?: (error: z.ZodError | unknown) => void;
 }
 
 export type EnvSchema<T = string> = z.ZodObject<Record<keyof T, z.ZodType>>;
 
 const defaultOptions: EnvValidatorOptions = {
     processENV: process.env,
-    strict: true,
-    logger: console.error,
+    errorLogger: console.error,
 };
 
 /**
@@ -48,7 +40,7 @@ export function requiredIn(
 ): z.RefinementEffect<string | undefined | boolean>["refinement"] {
     return (value, ctx) => {
         const currentEnv = process.env.NODE_ENV as Environment;
-        if (environments.includes(currentEnv) && !value) {
+        if (environments.includes(currentEnv) && value == undefined) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 message: `Missing required environment variable ${ctx.path.join(".")} in ${currentEnv} environment`,
@@ -86,22 +78,10 @@ export const validateEnv = <T extends z.ZodType>(
     const mergedOptions = { ...defaultOptions, ...options };
 
     try {
-        return schema.parse(process.env);
+        return schema.parse(mergedOptions.processENV);
     } catch (error) {
-        if (error instanceof z.ZodError) {
-            const formatted = error.format();
-            mergedOptions?.logger?.(
-                `Environment validation failed: ${JSON.stringify(formatted, null, 2)}`
-            );
-
-            if (mergedOptions.strict) {
-                throw error;
-            }
-        }
+        if (options?.errorLogger) return options.errorLogger(error);
         throw error;
-
-        // // Return partial data if not strict
-        // return schema.partial().parse(options.processENV);
     }
 };
 
@@ -161,14 +141,14 @@ export const createEnvSchema = <T extends CreateEnvSchema>(envVars: T) => {
                 schema = z.string().optional();
         }
 
-        // Add requirements
-        if (config.requiredIn && config.requiredIn.length > 0) {
-            schema = schema.superRefine(requiredIn(config.requiredIn));
-        }
-
         // Add default if provided
         if (config.default !== undefined) {
             schema = schema.default(config.default);
+        }
+
+        // Add requirements
+        if (config.requiredIn && config.requiredIn.length > 0) {
+            schema = schema.superRefine(requiredIn(config.requiredIn));
         }
 
         schemaObj[key] = schema;
