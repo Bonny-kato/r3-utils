@@ -459,3 +459,25 @@ function SearchResults() {
 ## Integration with React Router
 
 Many of these utilities are designed to work seamlessly with React Router, especially the error handling and redirection utilities. Make sure you have React Router installed and properly set up in your application to use these utilities effectively.
+
+
+## Env Validator Imports
+
+The env-validator utilities are re-exported from the main utils entry for stable public imports. Internal files live under `src/utils/env-validator`, but you should import from the public module entry:
+
+```ts
+// Recommended public imports (unchanged)
+import {
+  validateEnv,
+  createEnvSchema,
+  requiredIn,
+  requiredInDevelopment,
+  requiredInProduction,
+  requiredInProdAndDev,
+  type Environment,
+  type EnvSchema,
+  type EnvValidatorOptions,
+} from 'r3-utils/utils';
+```
+
+This preserves tree-shaking and avoids relying on internal paths.

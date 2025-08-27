@@ -1,4 +1,4 @@
-import { data as json, ErrorResponse, redirect } from "react-router";
+import { data, ErrorResponse, redirect } from "react-router";
 import { ErrorType } from "../http-client/try-catch-http";
 
 /**
@@ -8,7 +8,10 @@ import { ErrorType } from "../http-client/try-catch-http";
  * @param statusCode - The HTTP status code to associate with the error
  * @throws A stringified custom error object containing the status, message, and status text
  */
-export const throwCustomError = (message: string, statusCode: number): never => {
+export const throwCustomError = (
+    message: string,
+    statusCode: number
+): never => {
     const error: ErrorResponse = {
         status: statusCode,
         data: { message },
@@ -34,10 +37,19 @@ type RedirectUrl = FormDataEntryValue | string | null | undefined;
  * @param init - Optional parameters for the redirect request
  * @returns The response from the redirect request
  */
-export const safeRedirect = (to: RedirectUrl, init?: number | ResponseInit): Response => {
+export const safeRedirect = (
+    to: RedirectUrl,
+    init?: number | ResponseInit
+): Response => {
     let redirectUrl = to as string;
 
-    if (!to || typeof to !== "string" || !to.startsWith("/") || to.startsWith("//")) {
+    if (
+        !to ||
+        typeof to !== "string" ||
+        !to.startsWith("/") ||
+        to.startsWith("//")
+    ) {
+        // Todo: Redirect url should be configurable through a props <fallbackUrl>
         redirectUrl = "/";
     }
 
@@ -51,5 +63,5 @@ export const safeRedirect = (to: RedirectUrl, init?: number | ResponseInit): Res
  * @throws A Response object with the error message in JSON format and the specified HTTP status code
  */
 export const throwError = (error: ErrorType): never => {
-    throw json(error.message, { status: error.status });
+    throw data(error.message, { status: error.status });
 };
