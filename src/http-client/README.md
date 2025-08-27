@@ -314,3 +314,42 @@ function UserProfile({ userId, token }) {
   );
 }
 ```
+
+
+## Status Code Utilities
+
+A comprehensive set of HTTP status code constants and common network error codes are available for import:
+
+```ts
+import {
+  HTTP_OK,
+  HTTP_CREATED,
+  HTTP_NOT_FOUND,
+  HTTP_TOO_MANY_REQUESTS,
+  HTTP_INTERNAL_SERVER_ERROR,
+  // ...and many more
+  NETWORK_ERROR_CODE,
+  OFFLINE_ERROR_CODE,
+} from 'r3-utils/http-client/status-code';
+```
+
+### Example: Handling responses with constants
+```ts
+const [err, data] = await api.get<User>('/users/123');
+if (err) {
+  if (err.status === HTTP_NOT_FOUND) {
+    // show not-found UI
+  } else if (err.status === OFFLINE_ERROR_CODE) {
+    // user appears offline
+  } else {
+    // generic error
+  }
+}
+```
+
+### Example: Detecting network issues
+```ts
+function isNetworkIssue(e: unknown): boolean {
+  return !!(e && typeof e === 'object' && 'code' in e && NETWORK_ERROR_CODE.includes((e as any).code));
+}
+```

@@ -1,80 +1,66 @@
 import axios, {
+    AxiosInstance,
     AxiosRequestConfig,
     AxiosResponse,
     Method as HttpMethod,
-    RawAxiosRequestHeaders,
+    InternalAxiosRequestConfig,
 } from "axios";
 import { ErrorType, tryCatchHttp } from "./try-catch-http";
+
+export type BaseUrl = `https://${string}` | `http://${string}`;
+export type Endpoint = `/${string}` | `${BaseUrl}/${string}`;
+
+type OnRequestFulfilled<TBody = unknown> = (
+    config: InternalAxiosRequestConfig<TBody>
+) =>
+    | InternalAxiosRequestConfig<TBody>
+    | Promise<InternalAxiosRequestConfig<TBody>>;
+
+type OnRequestRejected = (error: unknown) => unknown;
+
+export interface ExtendedAxiosInstance extends Omit<AxiosInstance, "defaults"> {
+    defaults: AxiosInstance["defaults"] & {
+        logRequests?: boolean;
+    };
+}
 
 /**
  * Configuration options for initializing the HttpClient
  */
-type HttpRequestConfig = {
+export interface HttpRequestConfig<TBody = unknown>
+    extends Omit<AxiosRequestConfig<TBody>, "method" | "url" | "baseURL"> {
     /** Base URL for all API requests */
-    baseUrl: string;
-    /** Optional headers to include with all requests */
-    headers?: RawAxiosRequestHeaders;
+    baseUrl?: BaseUrl;
     /** Whether to log request details to the console */
     logRequests?: boolean;
-    /** Request timeout in milliseconds */
-    timeout?: Milliseconds;
-};
-
-/** Type alias for milliseconds */
-type Milliseconds = number;
+}
 
 /**
  * Configuration options for individual HTTP method requests
  */
-interface HttpMethodRequestConfig
-    extends Partial<Omit<HttpRequestConfig, "logRequests">> {
-    /** AbortSignal to cancel request */
-    signal?: AbortSignal;
-    /** Auth token to include in request */
-    token?: string;
-}
+type HttpMethodRequestConfig<TBody = unknown> = Partial<
+    Omit<HttpRequestConfig<TBody>, "logRequests">
+>;
 
 /**
  * Internal request configuration options
  */
-interface RequestOptions extends HttpMethodRequestConfig {
-    /** Request payload data */
-    data?: object;
+interface RequestConfig<TBody = unknown>
+    extends HttpMethodRequestConfig<TBody> {
     /** API endpoint path */
-    endpoint: string;
+    endpoint: Endpoint;
     /** HTTP method */
     method: HttpMethod;
 }
 
-/**
- * HTTP client for making API requests with built-in error handling and type safety.
- *
- * Features:
- * - Type-safe request/response handling
- * - Automatic error handling and standardization
- * - Bearer token auth support
- * - Request logging
- * - Request cancellation support
- * - Configurable timeouts
- *
- * @example
- * ```ts
- * const client = new HttpClient({
- *   baseUrl: 'https://api.example.com',
- *   logRequests: true
- * });
- *
- * // GET request
- * const [error, data] = await client.get<UserData>('/users/123');
- *
- * // POST request with data
- * const [error, result] = await client.post<Response>('/items', {
- *   name: 'New Item'
- * });
- * ```
- */
+type RequestInterceptorOptions = {
+    runWhen?: (config: InternalAxiosRequestConfig) => boolean; // Also update this
+    synchronous?: boolean;
+};
+
 export class HttpClient {
     #globalConfig: HttpRequestConfig;
+    #axios: AxiosInstance;
 
     /**
      * Creates a new HttpClient instance
@@ -82,40 +68,83 @@ export class HttpClient {
      */
     constructor(config: HttpRequestConfig) {
         this.#globalConfig = config;
+
+        // Dedicated axios instance per client
+        const { baseUrl, headers, ...rest } = config;
+        this.#axios = axios.create({
+            baseURL: baseUrl,
+            headers,
+            ...rest,
+        });
+    }
+
+    /**
+     * DO NOT USE
+     *
+     * Exposes the internal axios instance for testing purposes
+     * @internal - This should only be used for testing
+     */
+    get axiosInstance(): AxiosInstance {
+        return this.#axios;
+    }
+
+    /**
+     * Simple public API for interceptors
+     * Returns an unsubscribe function to eject the interceptor.
+     */
+    onRequest(
+        fulfilled: OnRequestFulfilled,
+        rejected?: OnRequestRejected,
+        options?: RequestInterceptorOptions
+    ): () => void {
+        const id = this.#axios.interceptors.request.use(
+            fulfilled,
+            rejected,
+            options
+        );
+        return () => this.#axios.interceptors.request.eject(id);
+    }
+
+    onResponse(
+        fulfilled: (
+            response: AxiosResponse
+        ) => AxiosResponse | Promise<AxiosResponse>,
+        rejected?: (error: unknown) => unknown
+    ): () => void {
+        const id = this.#axios.interceptors.response.use(fulfilled, rejected);
+        return () => this.#axios.interceptors.response.eject(id);
     }
 
     /**
      * Makes a POST request to the specified endpoint
-     * @param endpoint - API endpoint path
-     * @param data - Request payload
-     * @param config - Additional request configuration
      * @returns Tuple of [error, response]
      */
-    post = async <TData, TError extends ErrorType = ErrorType>(
-        endpoint: string,
-        data: object,
-        config?: HttpMethodRequestConfig
+    post = async <
+        TResponse,
+        TBody = unknown,
+        TError extends ErrorType = ErrorType,
+    >(
+        endpoint: Endpoint,
+        body: TBody,
+        config?: HttpMethodRequestConfig<TBody>
     ) => {
-        return this.#request<TData, TError>({
-            data,
+        return this.#request<TResponse, TBody, TError>({
+            data: body,
             endpoint,
-            method: "post",
+            method: "POST",
             ...config,
         });
     };
 
-    // Todo: Accept data as optional see https://www.rfc-editor.org/rfc/rfc9110.html#name-delete
     /**
      * Makes a DELETE request to the specified endpoint
-     * @param endpoint - API endpoint path
-     * @param config - Additional request configuration
      * @returns Tuple of [error, response]
      */
-    delete = async <TData, TError extends ErrorType = ErrorType>(
-        endpoint: string,
+    delete = async <TResponse, TError extends ErrorType = ErrorType>(
+        endpoint: Endpoint,
         config?: HttpMethodRequestConfig
     ) => {
-        return this.#request<TData, TError>({
+        return this.#request<TResponse, unknown, TError>({
             endpoint,
             method: "DELETE",
             ...config,
@@ -124,18 +153,19 @@ export class HttpClient {
 
     /**
      * Makes a PUT request to the specified endpoint
-     * @param endpoint - API endpoint path
-     * @param data - Request payload
-     * @param config - Additional request configuration
      * @returns Tuple of [error, response]
      */
-    put = async <TData, TError extends ErrorType = ErrorType>(
-        endpoint: string,
-        data: object,
-        config?: HttpMethodRequestConfig
+    put = async <
+        TResponse,
+        TBody = unknown,
+        TError extends ErrorType = ErrorType,
+    >(
+        endpoint: Endpoint,
+        body: TBody,
+        config?: HttpMethodRequestConfig<TBody>
     ) => {
-        return this.#request<TData, TError>({
-            data,
+        return this.#request<TResponse, TBody, TError>({
+            data: body,
             endpoint,
             method: "PUT",
             ...config,
@@ -144,18 +174,19 @@ export class HttpClient {
 
     /**
      * Makes a PATCH request to the specified endpoint
-     * @param endpoint - API endpoint path
-     * @param data - Request payload
-     * @param config - Additional request configuration
      * @returns Tuple of [error, response]
      */
-    patch = async <TData, TError extends ErrorType = ErrorType>(
-        endpoint: string,
-        data: object,
-        config?: HttpMethodRequestConfig
+    patch = async <
+        TResponse,
+        TBody = unknown,
+        TError extends ErrorType = ErrorType,
+    >(
+        endpoint: Endpoint,
+        body: TBody,
+        config?: HttpMethodRequestConfig<TBody>
     ) => {
-        return this.#request<TData, TError>({
-            data,
+        return this.#request<TResponse, TBody, TError>({
+            data: body,
             endpoint,
             method: "PATCH",
             ...config,
@@ -164,18 +195,16 @@ export class HttpClient {
 
     /**
      * Makes a GET request to the specified endpoint
-     * @param endpoint - API endpoint path
-     * @param config - Additional request configuration
      * @returns Tuple of [error, response]
      */
-    get = async <TData, TError extends ErrorType = ErrorType>(
-        endpoint: string,
+    get = async <TResponse, TError extends ErrorType = ErrorType>(
+        endpoint: Endpoint,
         config?: HttpMethodRequestConfig
     ) => {
-        return this.#request<TData, TError>({
+        return this.#request<TResponse, unknown, TError>({
             ...config,
             endpoint,
-            method: "get",
+            method: "GET",
         });
     };
 
@@ -188,36 +217,52 @@ export class HttpClient {
         }
     };
 
-    /**
-     * Makes an HTTP request with the given configuration
-     * @param options - Request configuration options
-     * @returns Promise resolving to [error, response] tuple
-     */
-    async #request<TData, TError extends ErrorType = ErrorType>({
+    #mergeConfig = <TBody = unknown>({
         baseUrl,
         endpoint,
         method,
-        token,
         headers,
         ...otherProps
-    }: RequestOptions) {
-        const $baseUrl = baseUrl ?? this.#globalConfig.baseUrl;
+    }: RequestConfig<TBody>) => {
+        const {
+            baseUrl: globalUrl,
+            headers: globalHeader,
+            ...otherGlobalConfig
+        } = this.#globalConfig;
 
-        const config: AxiosRequestConfig = {
+        const effectiveBaseURL = baseUrl ?? globalUrl;
+
+        const isAbsolute =
+            endpoint.startsWith("http://") || endpoint.startsWith("https://");
+
+        return {
+            ...otherGlobalConfig,
             ...otherProps,
+            baseURL: isAbsolute ? undefined : effectiveBaseURL,
             headers: {
-                ...this.#globalConfig.headers,
-                Authorization: token ? `Bearer ${token}` : undefined,
+                ...globalHeader,
                 ...headers,
             },
             method,
-            url: $baseUrl + endpoint,
-        };
+            url: endpoint, // use relative endpoint; baseURL handles the prefix
+        } satisfies AxiosRequestConfig;
+    };
 
-        return tryCatchHttp<TData, TError>(async () => {
+    /**
+     * Makes an HTTP request with the given configuration
+     * @returns Promise resolving to [error, response] tuple
+     */
+    async #request<
+        TResponse,
+        TBody = unknown,
+        TError extends ErrorType = ErrorType,
+    >(requestConfig: RequestConfig<TBody>) {
+        const config = this.#mergeConfig<TBody>(requestConfig);
+
+        return tryCatchHttp<TResponse, TError>(async () => {
             this.#logRequest(config);
-
-            const response: AxiosResponse<TData> = await axios(config);
+            const response: AxiosResponse<TResponse> =
+                await this.#axios.request<TResponse>(config);
             return response.data;
         })();
     }

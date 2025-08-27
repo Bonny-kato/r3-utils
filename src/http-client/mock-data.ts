@@ -1,4 +1,4 @@
-import { PaginationType } from '../zod-common';
+import { PaginationType } from "~/zod-common";
 
 export interface GenerateMockData<TData> {
     data: TData[];
