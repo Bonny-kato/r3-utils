@@ -1,14 +1,25 @@
+/// <reference types="vitest" />
 import react from "@vitejs/plugin-react";
 import { builtinModules } from "module";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
 import { defineConfig } from "vite";
+import tsconfigPaths from "vite-tsconfig-paths";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), tsconfigPaths()],
+    test: {
+        typecheck: {
+            enabled: true,
+        },
+        coverage: {
+            provider: "v8",
+            enabled: true,
+        },
+    },
     build: {
         outDir: "dist",
         emptyOutDir: true,

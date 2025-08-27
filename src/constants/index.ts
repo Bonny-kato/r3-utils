@@ -13,6 +13,7 @@ export const HTTP_NOT_ACCEPTABLE = 406;
 export const NETWORK_ERROR_CODE = [
     "ENOTFOUND", // DNS lookup failed
     "ETIMEDOUT", // Connection timed out
+    "ECONNABORTED", // Connection timed out
     "ECONNREFUSED", // Connection refused by server
     "ENETUNREACH", // Network unreachable
     "ECONNRESET", // Connection reset by peer

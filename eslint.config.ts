@@ -10,6 +10,7 @@ import Config = Linter.Config;
 const config: Config[] = [
     js.configs.recommended,
     {
+        ignores: ["eslint.config.ts"],
         files: ["**/*.{ts,tsx}"],
         plugins: {
             // @ts-ignore
@@ -23,8 +24,8 @@ const config: Config[] = [
                 window: true,
                 setTimeout: true,
                 localStorage: true,
-                NodeJS:true,
-                clearInterval:true
+                NodeJS: true,
+                clearInterval: true,
                 // Add any other globals you need here
             },
             parserOptions: {
@@ -56,6 +57,8 @@ const config: Config[] = [
             "react-hooks/rules-of-hooks": "error",
             "react-hooks/exhaustive-deps": "warn",
             "react/react-in-jsx-scope": "off",
+            "no-dupe-class-members": "off",
+            "@typescript-eslint/no-dupe-class-members": "error",
             "no-undef": "off",
         },
     },
