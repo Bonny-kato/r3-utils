@@ -1,5 +1,5 @@
 import { data, ErrorResponse, redirect } from "react-router";
-import { ErrorType } from "../http-client/try-catch-http";
+import { ErrorType } from "~/http-client/try-catch-http";
 
 /**
  * Throws a custom error with the provided message and status code.

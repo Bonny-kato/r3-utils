@@ -95,6 +95,7 @@ export const unwrapNestedPromise = async <T>(
 
         return { data, error: null };
     } catch (error) {
+        console.log("[error]", error);
         return { data: undefined, error };
     }
 };

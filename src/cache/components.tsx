@@ -15,7 +15,7 @@ import { CacheClient, type CacheEntryType } from "./cache-client";
 import {
     unwrapNestedPromise,
     type UnwrapNestedPromise,
-} from "./unwrap-nested-promise";
+} from "./unwrap-nested-promise"; ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 //#region useFetch hook
@@ -84,6 +84,8 @@ export interface FetchOptions {
      * @default true
      */
     fetchOnReconnect?: boolean;
+
+    fetchKey: string;
 }
 
 /**
@@ -145,7 +147,7 @@ export const useFetch = <T extends LoaderFunction>(
     const [isFetching, setIsFetching] = useState(false);
 
     const { load, data: fetcherData } = useFetcher({
-        key: resourceToFetchFrom,
+        key: options.fetchKey,
     });
 
     const [isLoading, setIsLoading] = useState(false);

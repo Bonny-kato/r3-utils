@@ -38,6 +38,12 @@ export interface AuthOptions<
     loginPageUrl?: string;
     /** Custom URL for the logout page (defaults to "/logout") */
     logoutPageUrl?: string;
+    /**
+     * Authentication mode that determines the session storage type:
+     * - "test": Uses memory session storage for testing
+     * - "default": Uses cookie session storage for production
+     * @default "default"
+     */
     mode?: Mode;
 }
 

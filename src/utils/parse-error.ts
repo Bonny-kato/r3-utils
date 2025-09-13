@@ -39,7 +39,7 @@ const hasStringMessage = (obj: unknown): obj is { message: string } => {
         typeof obj === "object" &&
         obj !== null &&
         "message" in obj &&
-        typeof (obj as any).message === "string"
+        typeof obj?.message === "string"
     );
 };
 
@@ -69,6 +69,7 @@ const tryParseErrorJson = (message: string): unknown | null => {
  * @returns A structured ErrorResponse object
  */
 export const parseErrorResponse = (_error: unknown): ErrorResponse => {
+    console.log("[_error]", _error);
     // Handle React Router errors
     if (isRouteErrorResponse(_error)) {
         return _error;

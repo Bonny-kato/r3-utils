@@ -40,9 +40,9 @@ export const createMockAuth = (
             name: "__test_session",
             secrets: ["your_session_secret_here"],
         },
-        storageAdapter: mockRedisAdapter,
-        ...overrides,
         mode: "test",
+        ...overrides,
+        storageAdapter: mockRedisAdapter,
     });
 
 /**

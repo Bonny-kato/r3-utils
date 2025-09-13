@@ -1,39 +1,3 @@
-/**
- * Represents a dictionary of serializable query parameters used for constructing query strings or other key-value-based structures.
- *
-
- * Designed to be compatible with serialization processes where query parameters need to be transformed into string-based formats (e.g., URL query strings).
- */
-type SerializableQueryParams = {
-    [key: string]: string | number | boolean | undefined | string[] | number[];
-};
-
-/**
- * Generates query parameters from an object.
- * Ony params that has a truth value will be included on url else will be discarded
- * @param {SerializableQueryParams} params - The object containing the query parameters.
- * @returns {URLSearchParams} - The generated query parameters.
- */
-export const serializeQueryParams = (
-    params?: SerializableQueryParams
-): string => {
-    const urlSearchParams = new URLSearchParams();
-
-    for (const [key, value] of Object.entries(params ?? {})) {
-        if (value != null) {
-            if (Array.isArray(value)) {
-                value.forEach((item) =>
-                    urlSearchParams.append(key, String(item))
-                );
-            } else {
-                urlSearchParams.append(key, String(value));
-            }
-        }
-    }
-
-    return urlSearchParams.toString();
-};
-
 export type ParsedSearchParams = Record<string, string | string[] | undefined>;
 
 /**
@@ -56,8 +20,26 @@ export const parseSearchParams = <
 >(
     fullUrl: string
 ): T => {
-    // Extract the query string from the full URL
-    const queryString = fullUrl.includes("?") ? fullUrl.split("?")[1] : fullUrl;
+    // Determine the query string from the provided input
+    // - If a full URL is provided, use URL API to get the search part
+    // - If a raw query string is provided, use it as-is
+    let queryString = "";
+
+    try {
+        const url = new URL(fullUrl);
+        queryString = url.search.startsWith("?")
+            ? url.search.slice(1)
+            : url.search;
+    } catch {
+        // Not a full URL, treat input as a raw query string
+        queryString = fullUrl.startsWith("?") ? fullUrl.slice(1) : fullUrl;
+    }
+
+    // If there's no query string, return an empty object
+    if (!queryString) {
+        return {} as T;
+    }
+
     const params = new URLSearchParams(queryString);
     const parsedParams: ParsedSearchParams = {};
 
