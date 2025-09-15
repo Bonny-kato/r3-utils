@@ -10,12 +10,9 @@ import {
     useState,
 } from "react";
 import { type LoaderFunction, useFetcher } from "react-router";
-import { useEventListener } from "../hooks";
+import { useEventListener } from "~/hooks";
 import { CacheClient, type CacheEntryType } from "./cache-client";
-import {
-    unwrapNestedPromise,
-    type UnwrapNestedPromise,
-} from "./unwrap-nested-promise"; ////////////////////////////////////////////////////////////////////////////////
+import { unwrapNestedPromise, type UnwrapNestedPromise, } from "./unwrap-nested-promise";
 
 ////////////////////////////////////////////////////////////////////////////////
 //#region useFetch hook
@@ -84,8 +81,6 @@ export interface FetchOptions {
      * @default true
      */
     fetchOnReconnect?: boolean;
-
-    fetchKey: string;
 }
 
 /**
@@ -147,7 +142,7 @@ export const useFetch = <T extends LoaderFunction>(
     const [isFetching, setIsFetching] = useState(false);
 
     const { load, data: fetcherData } = useFetcher({
-        key: options.fetchKey,
+        key: resourceToFetchFrom,
     });
 
     const [isLoading, setIsLoading] = useState(false);
