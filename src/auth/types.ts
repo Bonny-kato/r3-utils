@@ -1,12 +1,12 @@
 import {
     createCookieSessionStorage,
     createMemorySessionStorage,
+    type Session,
 } from "react-router";
 import {
     AuthStorageAdapter,
-    UserId,
     UserIdentifier,
-} from "~/auth/auth-storage-adapter";
+} from "~/auth/adapters/auth-storage-adapter";
 
 export type Overwrite<T, U extends Partial<{ [K in keyof T]: unknown }>> = Omit<
     T,
@@ -49,6 +49,13 @@ export interface AuthOptions<
 
 export type AuthMode = "test" | "default";
 
+export type SessionStorageDataType = { sessionId: string };
+
 export type SessionStorage<Mode extends AuthMode> = Mode extends "test"
-    ? ReturnType<typeof createMemorySessionStorage<{ userId: UserId }>>
-    : ReturnType<typeof createCookieSessionStorage<{ userId: UserId }>>;
+    ? ReturnType<typeof createMemorySessionStorage<SessionStorageDataType>>
+    : ReturnType<typeof createCookieSessionStorage<SessionStorageDataType>>;
+
+export type GetSessionReturnType = Session<
+    SessionStorageDataType,
+    SessionStorageDataType
+>;

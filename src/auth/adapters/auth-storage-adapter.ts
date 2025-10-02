@@ -30,4 +30,15 @@ export interface AuthStorageAdapter<TUser extends UserIdentifier> {
     getAll(): Promise<TryCatchResult<TUser[]>>;
 
     resetExpiration(userId: UserId): Promise<TryCatchResult<boolean>>;
+
+    setUserSession(
+        userId: UserId,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>>;
+
+    getUserActiveSession(
+        userId: UserId
+    ): Promise<TryCatchResult<string | null>>;
+
+    removeUserSession(userId: UserId): Promise<TryCatchResult<boolean>>;
 }

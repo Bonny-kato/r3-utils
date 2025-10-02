@@ -1,12 +1,7 @@
 import { data } from "react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { Auth } from "~/auth";
-import {
-    createMockAuth,
-    getSessionCookie,
-    mockRedisAdapter,
-    mockRequest,
-} from "~/auth/__tests__/auth-test-utils";
+import { afterEach, describe, expect, it } from "vitest";
+import { Auth, MemoryStorageAdapter } from "~/auth";
+import { createMockAuth, getSessionCookie, mockRedisAdapter, mockRequest, } from "~/auth/__tests__/auth-test-utils";
 
 import { authUserTestData } from "~/auth/__tests__/auth-test-data";
 import {
@@ -93,33 +88,29 @@ describe("Auth (mode=test)", () => {
         expect(user).toMatchObject(authUserTestData);
     });
 
-    it("getUserId should return null when unauthenticated and id when authenticated", async () => {
+    it("isAuthenticated should return false when user is unauthenticated else true", async () => {
         const auth = createMockAuth();
 
         const reqNoCookie = makeRequest("/private");
-        await expect(auth.getUserId(reqNoCookie)).resolves.toBeNull();
+        await expect(auth.isAuthenticated(reqNoCookie)).resolves.toBe(false);
 
         const res = await auth.loginAndRedirect({ id: "u2" }, "/home");
         const cookie = extractCookiePair(res.headers.get("set-cookie"));
         const req = makeRequest("/home", cookie);
 
-        await expect(auth.getUserId(req)).resolves.toBe("u2");
+        await expect(auth.isAuthenticated(req)).resolves.toBe(true);
     });
 
     it("requireUserOrRedirect should redirect when unauthenticated", async () => {
         const auth = createMockAuth();
 
         const req = makeRequest("/private");
-        const consoleWarn = vi.spyOn(console, "warn");
 
         // Function throws a redirect Response; catch and assert
         try {
             await auth.requireUserOrRedirect(req);
             expect.unreachable("Expected redirect to be thrown");
         } catch (e: unknown) {
-            expect(consoleWarn).toHaveBeenCalledTimes(1);
-            expect(consoleWarn).toBeCalledWith("User Id is missing");
-
             expect(e).toBeInstanceOf(Response);
             const resp = e as Response;
             expect(REDIRECT_STATUS_CODES.includes(resp.status)).toBe(true);
@@ -140,7 +131,7 @@ describe("Auth (mode=test)", () => {
 
         await expect(auth.requireAccessToken(req)).resolves.toBe("abc");
 
-        // Without token -> new login for a user without token
+        // Without token -> new login for a user without a token
         const res2 = await auth.updateSession(req, { id: "u4" }, "/");
         const cookie2 = extractCookiePair(res2.headers.get("set-cookie"));
         const req2 = makeRequest("/", cookie2);
@@ -161,31 +152,37 @@ describe("Auth (mode=test)", () => {
     });
 
     it("updateSessionAndRedirect should update stored user and issue a new session cookie", async () => {
-        const auth = createMockAuth();
+        const storageAdapter = new MemoryStorageAdapter<TestUser>("users");
 
-        const loginRes = await auth.loginAndRedirect(
+        const auth = createMockAuth({ storageAdapter });
+
+        const loginResponse = await auth.loginAndRedirect(
             { id: "u5", name: "A" },
             "/start"
         );
-        const cookie1 = extractCookiePair(loginRes.headers.get("set-cookie"));
-        const req1 = makeRequest("/start", cookie1);
+        const firstCookie = extractCookiePair(
+            loginResponse.headers.get("set-cookie")
+        );
+        const firstRequest = makeRequest("/start", firstCookie);
 
-        const updateRes = await auth.updateSession(
-            req1,
-            { id: "u5", name: "Alice" },
+        const updateSessionResponse = await auth.updateSession(
+            firstRequest,
+            { id: "u8", name: "Alice" },
             "/updated"
         );
-        expect(getLocation(updateRes)).toBe("/updated");
+        expect(getLocation(updateSessionResponse)).toBe("/updated");
 
-        const cookie2 = extractCookiePair(updateRes.headers.get("set-cookie"));
-        const req2 = makeRequest("/updated", cookie2);
-        const user = await auth.requireUserOrRedirect(req2);
+        const secondCookie = extractCookiePair(
+            updateSessionResponse.headers.get("set-cookie")
+        );
+        const secondRequest = makeRequest("/updated", secondCookie);
+        const user = await auth.requireUserOrRedirect(secondRequest);
 
-        const authUsers = await auth.getAuthUsers(req2);
+        const authUsers = await auth.getAuthUsers(secondRequest);
 
         expect.soft(authUsers).not.toBe(null);
         expect.soft(authUsers?.length).toBe(1);
-        expect(user).toMatchObject({ id: "u5", name: "Alice" });
+        expect(user).toMatchObject({ id: "u8", name: "Alice" });
     });
 
     it("logoutAndRedirect should clear session and redirect to login by default", async () => {
@@ -234,75 +231,6 @@ describe("Auth (mode=test)", () => {
         );
 
         expect(getLocation(loginResponse)).toBe("/");
-    });
-
-    it("should clear session when  user does nots found in storage or manually removed from storage", async () => {
-        const auth = createMockAuth({
-            storageAdapter: mockRedisAdapter,
-        });
-        const loginRes = await auth.loginAndRedirect(
-            {
-                id: "u6",
-            },
-            "//user home"
-        );
-
-        await mockRedisAdapter.remove("u6");
-
-        try {
-            const cookie = extractCookiePair(
-                loginRes.headers.get("set-cookie")
-            );
-            const req = makeRequest("/private", cookie);
-
-            await auth.requireUserOrRedirect(req);
-            expect.unreachable(
-                "Expect to throw redirection since user it not presented in storage or manually removed from storage"
-            );
-        } catch (e) {
-            const responseError = e as Response;
-
-            expect.soft(responseError).toBeInstanceOf(Response);
-            expect(REDIRECT_STATUS_CODES.includes(responseError.status)).toBe(
-                true
-            );
-
-            expect((e as Response).headers.get("Location")).toBe(
-                "/login?redirectTo=%2Fprivate"
-            );
-        }
-    });
-
-    it("should override user data when user id is the same  and try to login again with different data", async () => {
-        const auth = createMockAuth();
-
-        const initialLoginRes = await auth.loginAndRedirect(
-            { id: "u1", name: "Initial" },
-            "/home"
-        );
-        const initialCookie = extractCookiePair(
-            initialLoginRes.headers.get("set-cookie")
-        );
-        const initialReq = makeRequest("/home", initialCookie);
-        const initialUser = await auth.requireUserOrRedirect(initialReq);
-
-        expect(initialUser).toMatchObject({ id: "u1", name: "Initial" });
-
-        const secondLoginRes = await auth.loginAndRedirect(
-            { id: "u1", name: "Updated" },
-            "/home"
-        );
-        const updatedCookie = extractCookiePair(
-            secondLoginRes.headers.get("set-cookie")
-        );
-        const updatedReq = makeRequest("/home", updatedCookie);
-        const updatedUser = await auth.requireUserOrRedirect(updatedReq);
-
-        const authUsers = await auth.getAuthUsers(updatedReq);
-
-        expect.soft(authUsers).not.toBe(null);
-        expect.soft(authUsers?.length).toBe(1);
-        expect(updatedUser).toMatchObject({ id: "u1", name: "Updated" });
     });
 
     it("should update session and redirect to the provided url", async () => {

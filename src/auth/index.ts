@@ -3,9 +3,9 @@ export {
     MemoryStorageAdapter,
     RedisStorageAdapter,
 } from "./adapters";
-export { Auth } from "./auth";
 export type {
     AuthStorageAdapter,
     UserId,
     UserIdentifier,
-} from "./auth-storage-adapter.ts";
+} from "./adapters/auth-storage-adapter.ts";
+export { Auth } from "./auth";

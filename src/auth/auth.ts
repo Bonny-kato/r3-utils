@@ -2,33 +2,44 @@ import {
     createCookieSessionStorage,
     createMemorySessionStorage,
     redirect,
-    Session,
 } from "react-router";
 import {
     AuthStorageAdapter,
-    UserId,
     UserIdentifier,
-} from "~/auth/auth-storage-adapter";
+} from "~/auth/adapters/auth-storage-adapter";
 import {
     AuthMode,
     AuthOptions,
     CookieStorageOptions,
+    GetSessionReturnType,
     SessionStorage,
+    SessionStorageDataType,
 } from "~/auth/types";
 import {
     HTTP_INTERNAL_SERVER_ERROR,
     HTTP_UNAUTHORIZED,
 } from "~/http-client/status-code";
-import { checkIsDevMode, safeRedirect, throwError, tryCatch } from "~/utils";
+import { safeRedirect, throwError, tryCatch } from "~/utils";
 import { JsonStorageAdapter } from "./adapters";
 
-const defaultCookieConfig: CookieStorageOptions = {
+const defaultCookieConfig = {
     httpOnly: true,
-    name: "__session",
-    secrets: ["my-really-secret"],
+    name: "__r3-utils-session",
     path: "/",
     sameSite: "lax",
-    secure: !checkIsDevMode(),
+    secure: true,
+} as CookieStorageOptions;
+
+// ----------------------------------------------------------------------
+/**
+ * Generates a cryptographically secure random session ID
+ */
+const generateSessionId = (): string => {
+    const array = new Uint8Array(32); // 256 bits
+    crypto.getRandomValues(array);
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join(
+        ""
+    );
 };
 
 // ----------------------------------------------------------------------
@@ -64,9 +75,18 @@ export class Auth<
         collectionName,
         mode,
     }: AuthOptions<User, Mode>) {
-        if (!cookie?.name) {
+        // Validate cookie name existence
+        if (!cookie?.name?.trim()) {
             throwError({
                 message: "Cookie name is required",
+                status: HTTP_INTERNAL_SERVER_ERROR,
+            });
+        }
+
+        // Validate cookie secrets existence
+        if (!cookie?.secrets?.length) {
+            throwError({
+                message: "Cookie secrets are required",
                 status: HTTP_INTERNAL_SERVER_ERROR,
             });
         }
@@ -76,9 +96,7 @@ export class Auth<
                 ? createMemorySessionStorage
                 : createCookieSessionStorage;
 
-        this.sessionStorage = createSessionStorage<{
-            userId: UserId;
-        }>({
+        this.sessionStorage = createSessionStorage<SessionStorageDataType>({
             cookie: { ...defaultCookieConfig, ...cookie },
         });
 
@@ -100,15 +118,50 @@ export class Auth<
     async loginAndRedirect(user: User, redirectTo: string): Promise<Response> {
         const session = await this.sessionStorage.getSession();
 
-        session.set("userId", user.id);
+        // 1️⃣ Check if a user has an existing active session
+        const [getUserSessionError, existingSessionId] =
+            await this.#storageAdapter.getUserActiveSession(user.id);
+
+        if (getUserSessionError) {
+            return throwError({
+                message: getUserSessionError.message,
+                status: HTTP_INTERNAL_SERVER_ERROR,
+            });
+        }
+
+        // 2️⃣If they do, invalidate the old session
+        if (existingSessionId) {
+            // Todo: handle error there
+            await this.#storageAdapter.remove(existingSessionId);
+            await this.#storageAdapter.removeUserSession(user.id);
+        }
+
+        // 3️⃣ Generate a new session &  store session data
+        const sessionId = generateSessionId();
+        session.set("sessionId", sessionId);
+
         const [error, storedUser] = await this.#storageAdapter.set(
-            user.id,
+            sessionId,
             user
         );
 
         if (error || !storedUser) {
             return throwError({
                 message: error?.message ?? "Unable to set user session",
+                status: HTTP_INTERNAL_SERVER_ERROR,
+            });
+        }
+
+        // 5️⃣ Link this session to the user
+        const [setUserSessionError] = await this.#storageAdapter.setUserSession(
+            user.id,
+            sessionId
+        );
+
+        if (setUserSessionError) {
+            await this.#storageAdapter.remove(sessionId);
+            return throwError({
+                message: setUserSessionError.message,
                 status: HTTP_INTERNAL_SERVER_ERROR,
             });
         }
@@ -131,15 +184,21 @@ export class Auth<
         user: User,
         redirectTo?: string
     ): Promise<Response | ResponseInit> {
-        const session = await this.#getSession(request);
+        const [currentSessionId, session] = await this.#getSession(request);
 
-        const [error, updatedUser] = await this.#storageAdapter.set(
-            user.id,
-            user
-        );
-        if (error) {
+        if (!currentSessionId) {
             return throwError({
-                message: error?.message,
+                message: "Session ID is missing",
+                status: HTTP_INTERNAL_SERVER_ERROR,
+            });
+        }
+
+        // remove existing session's data
+        const [removeSessionDataError, result] =
+            await this.#storageAdapter.remove(currentSessionId);
+        if (!result && removeSessionDataError) {
+            return throwError({
+                message: removeSessionDataError?.message,
                 status: HTTP_INTERNAL_SERVER_ERROR,
             });
         }
@@ -147,7 +206,19 @@ export class Auth<
         await this.sessionStorage.destroySession(session);
 
         if (redirectTo) {
-            return this.loginAndRedirect(updatedUser, redirectTo);
+            return this.loginAndRedirect(user, redirectTo);
+        }
+
+        // Generate new session id & update session data
+        const newSessionId = generateSessionId();
+        session.set("sessionId", newSessionId);
+
+        const [error] = await this.#storageAdapter.set(newSessionId, user);
+        if (error) {
+            return throwError({
+                message: error.message,
+                status: HTTP_INTERNAL_SERVER_ERROR,
+            });
         }
 
         return {
@@ -157,17 +228,9 @@ export class Auth<
         };
     }
 
-    /**
-     * Extracts the user ID from the session.
-     *
-     * @param request - The current request
-     * @returns The user ID if present, null otherwise
-     */
-    async getUserId(request: Request): Promise<string | null> {
-        const session = await this.#getSession(request);
-        const userId = session.get("userId") as string | undefined;
-
-        return userId || null;
+    async isAuthenticated(request: Request): Promise<boolean> {
+        const [sessionId] = await this.#getSession(request);
+        return !!sessionId;
     }
 
     /**
@@ -182,18 +245,18 @@ export class Auth<
         request: Request,
         redirectTo: string = new URL(request.url).pathname
     ): Promise<User> => {
-        const userId = await this.getUserId(request);
+        // 1️⃣ Retrieve user data associated with the sessionId if exist else throw internal server error
+        const [sessionId] = await this.#getSession(request);
 
-        if (!userId) {
-            return (await this.#throwRedirectToLoginPage(
+        if (!sessionId) {
+            return await this.#throwRedirectToLoginPage(
                 request,
                 redirectTo,
-                "User Id is missing"
-                //😑 I know, am cheating at list for now
-            )) as never as User;
+                "You are not authenticated"
+            );
         }
 
-        const [error, user] = await this.#storageAdapter.get(userId!);
+        const [error, user] = await this.#storageAdapter.get(sessionId);
 
         if (error) {
             return throwError({
@@ -206,15 +269,40 @@ export class Auth<
             return this.#throwRedirectToLoginPage(
                 request,
                 redirectTo,
-                `User with id "${userId}" dose not found`
-                // 😑 here again
-            ) as never as User;
+                `User with session ID ${sessionId} not found`
+            );
         }
 
-        const [resetExpError, result] =
-            await this.#storageAdapter.resetExpiration(user.id);
+        // ----------------------------------------------------------------------
 
-        if (resetExpError || !result) {
+        // 2️⃣ Verify this session is still the active one for this user
+        // If the active session doesn't match, user was logged in elsewhere
+        // Clean up this invalid session
+        const [getUserSessionError, activeSessionId] =
+            await this.#storageAdapter.getUserActiveSession(user.id);
+
+        if (getUserSessionError) {
+            return throwError({
+                message: getUserSessionError.message,
+                status: HTTP_INTERNAL_SERVER_ERROR,
+            });
+        }
+
+        if (activeSessionId !== sessionId) {
+            await this.#storageAdapter.remove(sessionId);
+            return this.#throwRedirectToLoginPage(
+                request,
+                redirectTo,
+                "Your session was terminated because you logged in from another device"
+            );
+        }
+
+        // ----------------------------------------------------------------------
+
+        const [resetExpError] =
+            await this.#storageAdapter.resetExpiration(sessionId);
+
+        if (resetExpError) {
             return throwError({
                 message:
                     resetExpError?.message || "Unable to reset user session",
@@ -258,7 +346,7 @@ export class Auth<
     ): Promise<string> {
         const user = (await this.requireUserOrRedirect(request)) as never as T;
 
-        if (!user.token) {
+        if (!user?.token) {
             return throwError({
                 message: "Authenticated user lacks the required token property",
                 status: HTTP_UNAUTHORIZED,
@@ -281,17 +369,44 @@ export class Auth<
         return users;
     }
 
-    #clearSession = async (request: Request) => {
-        const session = await this.#getSession(request);
-        const userId = session.get("userId") as string | undefined;
+    async #getSession(
+        request: Request
+    ): Promise<[string | null, GetSessionReturnType]> {
+        const [error, session] = await tryCatch(
+            this.sessionStorage.getSession(request.headers.get("Cookie"))
+        );
 
-        if (userId) {
-            const [error] = await this.#storageAdapter.remove(userId);
+        if (error) {
+            return throwError({
+                message: error.message,
+                status: HTTP_INTERNAL_SERVER_ERROR,
+            });
+        }
+
+        const sessionId = session.get("sessionId") as string | null;
+
+        return [sessionId, session];
+    }
+
+    #clearSession = async (request: Request) => {
+        const [sessionId, session] = await this.#getSession(request);
+
+        if (sessionId) {
+            // 1️⃣ Get user before removing session
+            const [, user] = await this.#storageAdapter.get(sessionId);
+
+            // 2️⃣ Remove user session
+            const [error] = await this.#storageAdapter.remove(sessionId);
             if (error) {
                 return throwError({
                     message: error?.message,
                     status: HTTP_INTERNAL_SERVER_ERROR,
                 });
+            }
+
+            // 3️⃣ Also remove the user-session mapping
+            if (user) {
+                await this.#storageAdapter.removeUserSession(user.id);
             }
         }
 
@@ -303,43 +418,22 @@ export class Auth<
     };
 
     /**
-     * Retrieves the session from a request.
-     *
-     * @param request - The current request
-     * @returns The session associated with the request
-     */
-    async #getSession(request: Request) {
-        const [error, session] = await tryCatch(
-            this.sessionStorage.getSession(request.headers.get("Cookie"))
-        );
-
-        if (error) {
-            throwError({
-                message: error.message,
-                status: HTTP_INTERNAL_SERVER_ERROR,
-            });
-        }
-
-        return session as Session<{ userId: UserId }>;
-    }
-
-    /**
      * Helper function to generate a redirect URL and throw the redirect.
      */
     async #throwRedirectToLoginPage(
         request: Request,
         redirectTo: string,
         message?: string
-    ) {
+    ): Promise<never> {
         //⬇️ Just to be sure we clear the session before redirecting
         const headers = await this.#clearSession(request);
 
         if (message) {
-            console.warn(message);
+            // console.warn(message);
         }
         const searchParams = new URLSearchParams([["redirectTo", redirectTo]]);
 
-        console.log("[this.#loginPageUrl]", this.#loginPageUrl);
+        // console.log("[this.#loginPageUrl]", this.#loginPageUrl);
 
         throw redirect(`${this.#loginPageUrl}?${searchParams}`, headers);
     }

@@ -10,11 +10,7 @@ import {
 } from "~/auth/__tests__/auth-test-utils";
 import { TestUser } from "~/auth/__tests__/auth.test";
 
-import {
-    HTTP_FOUND,
-    HTTP_INTERNAL_SERVER_ERROR,
-    HTTP_UNAUTHORIZED,
-} from "~/http-client/status-code";
+import { HTTP_FOUND, HTTP_INTERNAL_SERVER_ERROR, HTTP_UNAUTHORIZED, } from "~/http-client/status-code";
 
 describe("Auth hardening tests", () => {
     beforeEach(() => {
@@ -24,7 +20,6 @@ describe("Auth hardening tests", () => {
     afterEach(async () => {
         await mockRedisAdapter.clear();
         vi.restoreAllMocks();
-        vi.useRealTimers();
     });
 
     it("Cookie tampering: malformed cookie value triggers login redirect and clears cookie", async () => {
@@ -103,22 +98,27 @@ describe("Auth hardening tests", () => {
 
         await auth.requireUserOrRedirect(mockRequest("/", cookie));
         expect(spy).toHaveBeenCalledTimes(1);
-        expect(spy).toHaveBeenCalledWith("slide-1");
+        expect((spy.mock.calls[0][0] as string).length).toBe(64);
     });
 
-    it("Session rotation: updateSessionAndRedirect issues a new session id", async () => {
+    it("Session rotation: updateSession issues a new session id", async () => {
         const auth = createMockAuth();
-        const r1 = await auth.loginAndRedirect({ id: "sid-1" }, "/a");
-        const c1 = getSessionCookie(r1);
-        const req1 = mockRequest("/a", c1);
+        const loginResponse = await auth.loginAndRedirect(
+            { id: "sid-1" },
+            "/a"
+        );
 
-        const r2 = await auth.updateSession(
-            req1,
+        const firstCookie = getSessionCookie(loginResponse);
+        const firstRequest = mockRequest("/a", firstCookie);
+
+        const updateSessionResponse = await auth.updateSession(
+            firstRequest,
             { id: "sid-1", name: "X" },
             "/b"
         );
-        const c2 = getSessionCookie(r2);
-        expect(c1).not.toBe(c2);
+
+        const secondCookie = getSessionCookie(updateSessionResponse);
+        expect(firstCookie).not.toBe(secondCookie);
     });
 
     it("CSRF flags: Set-Cookie has HttpOnly, SameSite=Lax, Secure in non-test mode", async () => {
@@ -331,5 +331,45 @@ describe("Auth hardening tests", () => {
 
         expect(res.status).toBe(HTTP_FOUND);
         expect(getLocation(res)).toBe("/dashboard");
+    });
+
+    it("should only allow user once at a time", async () => {
+        const auth = createMockAuth();
+
+        const userData = {
+            id: "my-id",
+            name: "Alice",
+        };
+
+        const firstLoginResponse = await auth.loginAndRedirect(
+            userData,
+            "/private"
+        );
+        const firstCookie = getSessionCookie(firstLoginResponse);
+
+        const secondLoginResponse = await auth.loginAndRedirect(
+            userData,
+            "/private"
+        );
+
+        const secondCookie = getSessionCookie(secondLoginResponse);
+
+        try {
+            await auth.requireUserOrRedirect(
+                mockRequest("/private", firstCookie)
+            );
+            expect.unreachable(
+                "Expected redirect due to user has already logged in some ware"
+            );
+        } catch (e) {
+            const error = e as Response;
+            expect(error?.status).toBe(302);
+            expect(getLocation(error)).toBe("/login?redirectTo=%2Fprivate");
+        }
+
+        const user = await auth.requireUserOrRedirect(
+            mockRequest("/private", secondCookie)
+        );
+        expect(user).toMatchObject(userData);
     });
 });

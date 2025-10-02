@@ -1,10 +1,6 @@
 import SimpleDB from "@bonnykato/simple-db";
-import type {
-    AuthStorageAdapter,
-    UserId,
-    UserIdentifier,
-} from "~/auth/auth-storage-adapter";
-import { tryCatch } from "~/utils";
+import type { AuthStorageAdapter, UserId, UserIdentifier, } from "~/auth/adapters/auth-storage-adapter";
+import { tryCatch, TryCatchResult } from "~/utils";
 
 /**
  * JSON file-based implementation of the AuthStorageAdapter interface.
@@ -35,6 +31,41 @@ export class JsonStorageAdapter<User extends UserIdentifier>
             "db.json",
             collectionName
         );
+    }
+    setUserSession(
+        userId: string,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            const user = await this.dbClient.getByID(String(userId));
+            if (!user) {
+                return false;
+            }
+            await this.dbClient.update(String(userId), {
+                ...user,
+                sessionId,
+            });
+            return true;
+        });
+    }
+    getUserActiveSession(
+        userId: string
+    ): Promise<TryCatchResult<string | null>> {
+        return tryCatch(async () => {
+            const user = await this.dbClient.getByID(String(userId));
+            return user?.sessionId || null;
+        });
+    }
+    removeUserSession(userId: string): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            const user = await this.dbClient.getByID(String(userId));
+            if (!user) {
+                return false;
+            }
+            const { sessionId, ...userData } = user;
+            await this.dbClient.update(String(userId), userData);
+            return true;
+        });
     }
 
     /**

@@ -4,8 +4,8 @@ import type {
     AuthStorageAdapter,
     UserId,
     UserIdentifier,
-} from "~/auth/auth-storage-adapter";
-import { tryCatch } from "~/utils";
+} from "~/auth/adapters/auth-storage-adapter";
+import { tryCatch, TryCatchResult } from "~/utils";
 
 export interface RedisLoggingConfig {
     enabled: boolean;
@@ -104,6 +104,36 @@ export class RedisStorageAdapter<User extends UserIdentifier>
 
     get connected() {
         return this.#redisClient.status === "ready";
+    }
+
+    setUserSession(
+        userId: string,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            const result = await this.#redisClient.set(
+                `user_session:${userId}`,
+                sessionId
+            );
+            return result === "OK";
+        });
+    }
+
+    getUserActiveSession(
+        userId: string
+    ): Promise<TryCatchResult<string | null>> {
+        return tryCatch(async () => {
+            return this.#redisClient.get(`user_session:${userId}`);
+        });
+    }
+
+    removeUserSession(userId: string): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            const result = await this.#redisClient.del(
+                `user_session:${userId}`
+            );
+            return result === 1; // one means okay;
+        });
     }
 
     /**

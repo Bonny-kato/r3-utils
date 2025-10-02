@@ -32,7 +32,7 @@ class Auth<User extends UserIdentifier> {
 
     getSession(request: Request);
 
-    async getUserId(request: Request): Promise<string | null>;
+    async getSession(request: Request): Promise<string | null>;
 
     requireUserOrRedirect(request: Request, redirectTo?: string);
 

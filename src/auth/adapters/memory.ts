@@ -2,8 +2,8 @@ import type {
     AuthStorageAdapter,
     UserId,
     UserIdentifier,
-} from "~/auth/auth-storage-adapter";
-import { tryCatch } from "~/utils"; // Default TTL for entries in seconds (10 minutes), same as Redis adapter
+} from "~/auth/adapters/auth-storage-adapter";
+import { tryCatch, TryCatchResult } from "~/utils"; // Default TTL for entries in seconds (10 minutes), same as Redis adapter
 
 // Default TTL for entries in seconds (10 minutes), same as Redis adapter
 const DEFAULT_TTL_SECONDS = 600;
@@ -36,6 +36,30 @@ export class MemoryStorageAdapter<User extends UserIdentifier>
     constructor(collectionName: string, options?: { ttlSeconds?: Seconds }) {
         this.#collectionName = collectionName;
         this.#defaultTTL = options?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+    }
+    setUserSession(
+        userId: UserId,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            const result = this.#store.set(
+                `user_session:${userId}`,
+                sessionId as never as StoredEntry<User>
+            );
+            return !!result;
+        });
+    }
+    getUserActiveSession(
+        userId: UserId
+    ): Promise<TryCatchResult<string | null>> {
+        return tryCatch(async () => {
+            return this.#store.get(`user_session:${userId}`) as never as string;
+        });
+    }
+    removeUserSession(userId: UserId): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            return this.#store.delete(`user_session:${userId}`);
+        });
     }
 
     async getAll() {
