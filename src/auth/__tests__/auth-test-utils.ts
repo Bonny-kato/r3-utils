@@ -32,15 +32,13 @@ export const mockRedisAdapter = new RedisStorageAdapter<TestUser>(
  * @param overrides - Optional partial auth options to override defaults
  * @returns A new Auth instance configured for testing
  */
-export const createMockAuth = (
-    overrides?: Partial<AuthOptions<TestUser, "test">>
-) =>
-    new Auth<TestUser, "test">({
+export const createMockAuth = (overrides?: Partial<AuthOptions<TestUser>>) =>
+    new Auth<TestUser>({
         cookie: {
             name: "__test_session",
             secrets: ["your_session_secret_here"],
         },
-        mode: "test",
+        sessionStorageType: "in-custom-db",
         ...overrides,
         storageAdapter: mockRedisAdapter,
     });

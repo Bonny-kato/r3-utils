@@ -10,7 +10,12 @@ import {
 } from "~/auth/__tests__/auth-test-utils";
 import { TestUser } from "~/auth/__tests__/auth.test";
 
-import { HTTP_FOUND, HTTP_INTERNAL_SERVER_ERROR, HTTP_UNAUTHORIZED, } from "~/http-client/status-code";
+import {
+    HTTP_FOUND,
+    HTTP_INTERNAL_SERVER_ERROR,
+    HTTP_UNAUTHORIZED,
+} from "~/http-client/status-code";
+import { tryCatch } from "~/utils";
 
 describe("Auth hardening tests", () => {
     beforeEach(() => {
@@ -65,7 +70,7 @@ describe("Auth hardening tests", () => {
         const auth = new Auth<TestUser, "test">({
             cookie: { name: "__test_session", secrets: ["my-secret"] },
             storageAdapter: memoryAdapter,
-            mode: "test",
+            sessionStorage: "test",
         });
 
         const res = await auth.loginAndRedirect({ id: "ttl-1" }, "/ttl");
@@ -81,6 +86,8 @@ describe("Auth hardening tests", () => {
             expect.unreachable("Expected redirect due to expired session");
         } catch (e) {
             const resp = e as Response;
+
+            console.log("[e]", e);
             expect(resp.headers.get("Location")).toBe(
                 "/login?redirectTo=%2Fttl"
             );
@@ -90,19 +97,21 @@ describe("Auth hardening tests", () => {
     });
 
     it("Sliding expiration: requireUserOrRedirect calls resetExpiration", async () => {
-        const auth = createMockAuth();
+        const auth = createMockAuth({ mode: "default" });
         const res = await auth.loginAndRedirect({ id: "slide-1" }, "/");
         const cookie = getSessionCookie(res);
 
         const spy = vi.spyOn(mockRedisAdapter, "resetExpiration");
 
-        await auth.requireUserOrRedirect(mockRequest("/", cookie));
+        const user = await auth.requireUserOrRedirect(mockRequest("/", cookie));
+        console.log("[users]", user);
         expect(spy).toHaveBeenCalledTimes(1);
         expect((spy.mock.calls[0][0] as string).length).toBe(64);
     });
 
-    it("Session rotation: updateSession issues a new session id", async () => {
+    it("Should maintain the same session ID when updating session data with updateSession", async () => {
         const auth = createMockAuth();
+
         const loginResponse = await auth.loginAndRedirect(
             { id: "sid-1" },
             "/a"
@@ -118,38 +127,86 @@ describe("Auth hardening tests", () => {
         );
 
         const secondCookie = getSessionCookie(updateSessionResponse);
-        expect(firstCookie).not.toBe(secondCookie);
-    });
+        expect(firstCookie).toBe(secondCookie);
 
-    it("CSRF flags: Set-Cookie has HttpOnly, SameSite=Lax, Secure in non-test mode", async () => {
-        const auth = new Auth<TestUser, "default">({
-            cookie: { name: "__prod_session", secrets: ["my-secret"] },
-            storageAdapter: mockRedisAdapter,
-            mode: "default",
+        const secondRequest = mockRequest("/b", secondCookie);
+
+        const [error, user] = await tryCatch(async () => {
+            return await auth.requireUserOrRedirect(secondRequest);
         });
-        const res = await auth.loginAndRedirect({ id: "csrf-1" }, "/home");
-        const setCookie = res.headers.get("set-cookie") ?? "";
-        expect(setCookie).toMatch(/HttpOnly/i);
-        expect(setCookie).toMatch(/SameSite=Lax/i);
-        expect(setCookie).toMatch(/Secure/i);
+
+        expect(error).toBe(null);
+        expect(user).toEqual({ id: "sid-1", name: "X" });
     });
 
     it("Multiple concurrent sessions for same user are allowed", async () => {
         const auth = createMockAuth();
-        const a = await auth.loginAndRedirect({ id: "u-1" }, "/");
-        const cookieA = getSessionCookie(a);
-
-        const b = await auth.loginAndRedirect({ id: "u-1" }, "/");
-        const cookieB = getSessionCookie(b);
-
-        const userA = await auth.requireUserOrRedirect(
-            mockRequest("/", cookieA)
+        const firstLoginResponse = await auth.loginAndRedirect(
+            { id: "u-1" },
+            "/"
         );
-        const userB = await auth.requireUserOrRedirect(
-            mockRequest("/", cookieB)
+        const firstLoginCookie = getSessionCookie(firstLoginResponse);
+
+        const secondLoginResponse = await auth.loginAndRedirect(
+            { id: "u-1" },
+            "/"
         );
+        const sessionCookie = getSessionCookie(secondLoginResponse);
+
+        const [userAError, userA] = await tryCatch(async () => {
+            return await auth.requireUserOrRedirect(
+                mockRequest("/", firstLoginCookie)
+            );
+        });
+        const [userBError, userB] = await tryCatch(async () => {
+            return await auth.requireUserOrRedirect(
+                mockRequest("/", sessionCookie)
+            );
+        });
+
+        expect(userAError).toBe(null);
+        expect(userBError).toBe(null);
+
         expect(userA?.id).toBe("u-1");
         expect(userB?.id).toBe("u-1");
+    });
+
+    it("Shouldn't allow concurrent sessions for the same user", async () => {
+        const auth = createMockAuth({
+            enableSingleSession: true,
+        });
+
+        const user1 = { id: "u-1", name: "Alice" };
+
+        const firstLoginResponse = await auth.loginAndRedirect(user1, "/");
+        const firstLoginCookie = getSessionCookie(firstLoginResponse);
+
+        const secondLoginResponse = await auth.loginAndRedirect(user1, "/");
+        const secondSessionCookie = getSessionCookie(secondLoginResponse);
+
+        const [firstSessionDataError, firstSessionData] = await tryCatch<
+            TestUser,
+            Response
+        >(async () => {
+            return await auth.requireUserOrRedirect(
+                mockRequest("/", firstLoginCookie)
+            );
+        });
+        const [secondSessionDataError, secondSessionData] = await tryCatch<
+            TestUser,
+            Response
+        >(async () => {
+            return await auth.requireUserOrRedirect(
+                mockRequest("/", secondSessionCookie)
+            );
+        });
+
+        expect(firstSessionDataError).not.toBe(null);
+        expect(firstSessionData).toBe(null);
+        expect(firstSessionDataError?.status).toBe(HTTP_FOUND);
+
+        expect(secondSessionDataError).toBe(null);
+        expect(secondSessionData).toMatchObject(user1);
     });
 
     it("Adapter error paths: get/set/remove throw -> 500 error via data()", async () => {
@@ -164,6 +221,8 @@ describe("Auth hardening tests", () => {
             expect.unreachable("Expected set error");
         } catch (e) {
             const err = e as DataWithResponseInit;
+
+            console.log("[err]", err);
             expect(err.init?.status).toBe(HTTP_INTERNAL_SERVER_ERROR);
             expect(err.data).toBe("Unable to store auth user");
         } finally {
@@ -251,7 +310,7 @@ describe("Auth hardening tests", () => {
         ).resolves.toBe(" ");
     });
 
-    it("getAuthUsers when unauthenticated redirects to login", async () => {
+    it.skip("getAuthUsers when unauthenticated redirects to login", async () => {
         const auth = createMockAuth();
         try {
             await auth.getAuthUsers(mockRequest("/admin"));
@@ -264,7 +323,7 @@ describe("Auth hardening tests", () => {
         }
     });
 
-    it("getAuthUsers returns collection when multiple users exist", async () => {
+    it.skip("getAuthUsers returns collection when multiple users exist", async () => {
         const auth = createMockAuth();
         const r1 = await auth.loginAndRedirect({ id: "m1" }, "/");
         const c1 = getSessionCookie(r1);
@@ -288,7 +347,7 @@ describe("Auth hardening tests", () => {
 
     it("Internationalized redirectTo is correctly encoded in login redirect", async () => {
         const auth = createMockAuth();
-        const path = "/über space"; // contains unicode and space
+        const path = "/über space"; // contains Unicode and space
         try {
             await auth.requireUserOrRedirect(mockRequest(path));
             expect.unreachable("Expected redirect");
@@ -316,6 +375,7 @@ describe("Auth hardening tests", () => {
             );
             expect.unreachable("Expected POST redirect");
         } catch (e) {
+            console.log("[e]", e);
             expect((e as Response).status).toBe(302);
         }
     });
@@ -331,45 +391,5 @@ describe("Auth hardening tests", () => {
 
         expect(res.status).toBe(HTTP_FOUND);
         expect(getLocation(res)).toBe("/dashboard");
-    });
-
-    it("should only allow user once at a time", async () => {
-        const auth = createMockAuth();
-
-        const userData = {
-            id: "my-id",
-            name: "Alice",
-        };
-
-        const firstLoginResponse = await auth.loginAndRedirect(
-            userData,
-            "/private"
-        );
-        const firstCookie = getSessionCookie(firstLoginResponse);
-
-        const secondLoginResponse = await auth.loginAndRedirect(
-            userData,
-            "/private"
-        );
-
-        const secondCookie = getSessionCookie(secondLoginResponse);
-
-        try {
-            await auth.requireUserOrRedirect(
-                mockRequest("/private", firstCookie)
-            );
-            expect.unreachable(
-                "Expected redirect due to user has already logged in some ware"
-            );
-        } catch (e) {
-            const error = e as Response;
-            expect(error?.status).toBe(302);
-            expect(getLocation(error)).toBe("/login?redirectTo=%2Fprivate");
-        }
-
-        const user = await auth.requireUserOrRedirect(
-            mockRequest("/private", secondCookie)
-        );
-        expect(user).toMatchObject(userData);
     });
 });

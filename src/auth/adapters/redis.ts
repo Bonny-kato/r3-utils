@@ -1,10 +1,6 @@
 import Redis, { type RedisOptions } from "ioredis";
 
-import type {
-    AuthStorageAdapter,
-    UserId,
-    UserIdentifier,
-} from "~/auth/adapters/auth-storage-adapter";
+import type { AuthStorageAdapter, UserId, UserIdentifier, } from "~/auth/adapters/auth-storage-adapter";
 import { tryCatch, TryCatchResult } from "~/utils";
 
 export interface RedisLoggingConfig {
@@ -104,6 +100,24 @@ export class RedisStorageAdapter<User extends UserIdentifier>
 
     get connected() {
         return this.#redisClient.status === "ready";
+    }
+
+    update(sessionId: UserId, data: Partial<User>) {
+        return tryCatch(async () => {
+            const [error, user] = await this.get(sessionId);
+            if (error) throw error;
+            if (!user)
+                throw new Error(`User with session id ${sessionId} not found`);
+
+            const updatedUser = {
+                ...user,
+                ...data,
+            };
+
+            const [err, result] = await this.set(sessionId, updatedUser);
+            if (err) throw err;
+            return result;
+        });
     }
 
     setUserSession(

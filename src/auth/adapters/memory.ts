@@ -33,6 +33,9 @@ export class MemoryStorageAdapter<User extends UserIdentifier>
     // storage per instance; we namespace entries by collectionName for clarity
     #store: Map<string, StoredEntry<User>> = new Map();
 
+    // separate map for userId -> active sessionId
+    #sessions: Map<string, string> = new Map();
+
     constructor(collectionName: string, options?: { ttlSeconds?: Seconds }) {
         this.#collectionName = collectionName;
         this.#defaultTTL = options?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
@@ -42,23 +45,20 @@ export class MemoryStorageAdapter<User extends UserIdentifier>
         sessionId: string
     ): Promise<TryCatchResult<boolean>> {
         return tryCatch(async () => {
-            const result = this.#store.set(
-                `user_session:${userId}`,
-                sessionId as never as StoredEntry<User>
-            );
-            return !!result;
+            this.#sessions.set(String(userId), sessionId);
+            return true;
         });
     }
     getUserActiveSession(
         userId: UserId
     ): Promise<TryCatchResult<string | null>> {
         return tryCatch(async () => {
-            return this.#store.get(`user_session:${userId}`) as never as string;
+            return this.#sessions.get(String(userId)) ?? null;
         });
     }
     removeUserSession(userId: UserId): Promise<TryCatchResult<boolean>> {
         return tryCatch(async () => {
-            return this.#store.delete(`user_session:${userId}`);
+            return this.#sessions.delete(String(userId));
         });
     }
 
@@ -118,6 +118,20 @@ export class MemoryStorageAdapter<User extends UserIdentifier>
             const expiresAt = Date.now() + this.#defaultTTL * 1000;
             this.#store.set(key, { value: data, expiresAt });
             return data;
+        });
+    }
+
+    update(userId: UserId, data: Partial<User>) {
+        return tryCatch<User>(async () => {
+            const [getErr, existing] = await this.get(userId);
+            if (getErr) throw getErr;
+            if (!existing)
+                throw new Error(`User with id ${String(userId)} not found`);
+
+            const updated = { ...existing, ...data } as User;
+            const [setErr] = await this.set(userId, updated);
+            if (setErr) throw setErr;
+            return updated;
         });
     }
 

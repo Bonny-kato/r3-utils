@@ -1,61 +1,44 @@
-import {
-    createCookieSessionStorage,
-    createMemorySessionStorage,
-    type Session,
-} from "react-router";
+import { Cookie, CookieOptions } from "react-router";
 import {
     AuthStorageAdapter,
     UserIdentifier,
 } from "~/auth/adapters/auth-storage-adapter";
 
-export type Overwrite<T, U extends Partial<{ [K in keyof T]: unknown }>> = Omit<
-    T,
-    keyof U
-> &
-    U;
+export type CookieStorageOptions = Cookie | (CookieOptions & { name: string });
 
-type SessionStorageOptions = NonNullable<
-    Parameters<typeof createCookieSessionStorage>[0]
->;
-
-export type CookieStorageOptions = SessionStorageOptions["cookie"] & {
-    secrets: Array<string>;
-};
-
-/**
- * Configuration options for the Auth class.
- */
-export interface AuthOptions<
-    User extends UserIdentifier,
-    Mode extends AuthMode = AuthMode,
-> {
-    storageAdapter?: AuthStorageAdapter<User>;
-    collectionName?: string;
+interface CommonAuthOptions {
     /** Cookie configuration for session storage */
-    cookie: Overwrite<CookieStorageOptions, { name: string }>;
+    cookie: CookieStorageOptions;
 
     /** Custom URL for the login page (defaults to "/login") */
     loginPageUrl?: string;
     /** Custom URL for the logout page (defaults to "/logout") */
     logoutPageUrl?: string;
-    /**
-     * Authentication mode that determines the session storage type:
-     * - "test": Uses memory session storage for testing
-     * - "default": Uses cookie session storage for production
-     * @default "default"
-     */
-    mode?: Mode;
 }
 
-export type AuthMode = "test" | "default";
+export type DbSessionStorageOptions = {
+    enableSingleSession?: boolean;
+};
 
-export type SessionStorageDataType = { sessionId: string };
+interface InCustomDdStorageOptions<User extends UserIdentifier>
+    extends CommonAuthOptions,
+        DbSessionStorageOptions {
+    sessionStorageType: "in-custom-db";
+    storageAdapter: AuthStorageAdapter<User>;
+}
 
-export type SessionStorage<Mode extends AuthMode> = Mode extends "test"
-    ? ReturnType<typeof createMemorySessionStorage<SessionStorageDataType>>
-    : ReturnType<typeof createCookieSessionStorage<SessionStorageDataType>>;
+interface InCookieOnlyStorageOptions extends CommonAuthOptions {
+    sessionStorageType: "in-cookie-only";
+}
 
-export type GetSessionReturnType = Session<
-    SessionStorageDataType,
-    SessionStorageDataType
->;
+interface InMemoryStorageOptions extends CommonAuthOptions {
+    sessionStorageType: "in-memory";
+}
+
+/**
+ * Configuration options for the Auth class.
+ */
+export type AuthOptions<User extends UserIdentifier> =
+    | InCustomDdStorageOptions<User>
+    | InCookieOnlyStorageOptions
+    | InMemoryStorageOptions;

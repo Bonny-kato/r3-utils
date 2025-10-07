@@ -20,6 +20,14 @@ export interface AuthStorageAdapter<TUser extends UserIdentifier> {
     set(userId: UserId, data: TUser): Promise<TryCatchResult<TUser>>;
 
     /**
+     * Update existing user entry with partial data.
+     */
+    update(
+        userId: UserId,
+        data: Partial<TUser>
+    ): Promise<TryCatchResult<TUser>>;
+
+    /**
      * Remove user entry from storage (session logout or session destroy).
      */
     remove(userId: UserId): Promise<TryCatchResult<boolean>>;

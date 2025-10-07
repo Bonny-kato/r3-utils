@@ -1,0 +1,11 @@
+{
+  "categories": {
+    "correctness": "error"
+  },
+  "plugins": [
+    "react",
+    "promise",
+    "node",
+    "vitest"
+  ]
+}
