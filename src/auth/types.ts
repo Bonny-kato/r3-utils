@@ -1,8 +1,5 @@
 import { CookieParseOptions, CookieSerializeOptions } from "react-router";
-import {
-    AuthStorageAdapter,
-    UserIdentifier,
-} from "~/auth/adapters/auth-storage-adapter";
+import { AuthStorageAdapter, UserIdentifier, } from "~/auth/adapters/auth-storage-adapter";
 
 export type CookieStorageOptions = CookieParseOptions &
     CookieSerializeOptions & { name: string; secrets: Array<string> };
@@ -29,11 +26,15 @@ interface InCustomDdStorageOptions<User extends UserIdentifier>
 }
 
 interface InCookieOnlyStorageOptions extends CommonAuthOptions {
-    sessionStorageType: "in-cookie-only";
+    sessionStorageType?: "in-cookie-only";
 }
 
 interface InMemoryStorageOptions extends CommonAuthOptions {
-    sessionStorageType: "in-memory";
+    sessionStorageType?: "in-memory";
+}
+
+interface DefaultStorageOptions extends CommonAuthOptions {
+    sessionStorageType?: undefined;
 }
 
 /**
@@ -42,4 +43,5 @@ interface InMemoryStorageOptions extends CommonAuthOptions {
 export type AuthOptions<User extends UserIdentifier> =
     | InCustomDdStorageOptions<User>
     | InCookieOnlyStorageOptions
-    | InMemoryStorageOptions;
+    | InMemoryStorageOptions
+    | DefaultStorageOptions;

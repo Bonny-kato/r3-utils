@@ -46,8 +46,8 @@ export const createMockAuth = (overrides?: Partial<AuthOptions<TestUser>>) =>
             secrets: ["your_session_secret_here"],
         },
         sessionStorageType: "in-custom-db",
-        ...overrides,
         storageAdapter: mockRedisAdapter,
+        ...overrides,
     });
 
 /**

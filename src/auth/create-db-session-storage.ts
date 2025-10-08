@@ -4,10 +4,16 @@ import {
     createMemorySessionStorage,
     createSessionStorage,
     FlashSessionData,
-    SessionStorage,
 } from "react-router";
-import { AuthStorageAdapter, UserIdentifier, } from "~/auth/adapters/auth-storage-adapter";
-import { AuthOptions, CookieStorageOptions, DbSessionStorageOptions, } from "~/auth/types";
+import {
+    AuthStorageAdapter,
+    UserIdentifier,
+} from "~/auth/adapters/auth-storage-adapter";
+import {
+    AuthOptions,
+    CookieStorageOptions,
+    DbSessionStorageOptions,
+} from "~/auth/types";
 import { HTTP_FOUND, HTTP_INTERNAL_SERVER_ERROR } from "~/http-client";
 import { throwError } from "~/utils";
 
@@ -210,49 +216,41 @@ export const createAuthStorage = <User extends UserIdentifier>(
             status: HTTP_INTERNAL_SERVER_ERROR,
         });
     }
-    let sessionStorage: SessionStorage<User, User>;
 
     const cookie = {
         ...defaultCookieOptions,
         ...options.cookie,
     };
 
-    switch (options.sessionStorageType) {
-        case "in-memory":
-            sessionStorage = createMemorySessionStorage<User>({
-                cookie,
-            });
-            break;
-        case "in-cookie-only":
-            sessionStorage = createCookieSessionStorage<User>({
-                cookie,
-            });
-            break;
-
-        case "in-custom-db":
-            if (!options.storageAdapter) {
-                return throwError({
-                    message:
-                        "Storage adapter is required when using in-custom-db mode",
-                    status: HTTP_INTERNAL_SERVER_ERROR,
-                });
-            }
-            sessionStorage = createDbSessionStorage(
-                options.storageAdapter,
-                cookie,
-                {
-                    enableSingleSession: options.enableSingleSession,
-                }
-            );
-
-            break;
-        default:
+    if (options?.sessionStorageType === "in-memory") {
+        return createMemorySessionStorage<User>({
+            cookie,
+        });
+    }
+    if (
+        options?.sessionStorageType === "in-cookie-only" ||
+        !options?.sessionStorageType
+    ) {
+        return createCookieSessionStorage<User>({
+            cookie,
+        });
+    }
+    if (options?.sessionStorageType === "in-custom-db") {
+        if (!options.storageAdapter) {
             return throwError({
                 message:
-                    "Invalid storage type. Must be one of: 'in-memory', 'in-cookie-only', 'in-custom-db.'",
+                    "Storage adapter is required when using in-custom-db mode",
                 status: HTTP_INTERNAL_SERVER_ERROR,
             });
+        }
+        return createDbSessionStorage(options.storageAdapter, cookie, {
+            enableSingleSession: options.enableSingleSession,
+        });
     }
 
-    return sessionStorage;
+    return throwError({
+        message:
+            "Invalid storage type. Must be one of: 'in-memory', 'in-cookie-only', 'in-custom-db.'",
+        status: HTTP_INTERNAL_SERVER_ERROR,
+    });
 };
