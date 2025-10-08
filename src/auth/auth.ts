@@ -1,19 +1,10 @@
 import { redirect, SessionStorage } from "react-router";
 import { UserIdentifier } from "~/auth/adapters/auth-storage-adapter";
-import {
-    createAuthStorage,
-    DbSessionStorageError,
-} from "~/auth/create-db-session-storage";
+import { createAuthStorage, DbSessionStorageError, } from "~/auth/create-db-session-storage";
 import { AuthOptions } from "~/auth/types";
-import {
-    HTTP_FOUND,
-    HTTP_INTERNAL_SERVER_ERROR,
-    HTTP_UNAUTHORIZED,
-} from "~/http-client/status-code";
+import { HTTP_FOUND, HTTP_INTERNAL_SERVER_ERROR, HTTP_UNAUTHORIZED, } from "~/http-client/status-code";
 import { safeRedirect, throwError, tryCatch, typedKeys } from "~/utils";
-import { isNotEmpty } from "~/utils/is-not-empty"; // ----------------------------------------------------------------------
-
-// ----------------------------------------------------------------------
+import { isNotEmpty } from "~/utils/is-not-empty";
 
 /**
  * Authentication utility class for managing user sessions.
@@ -103,7 +94,8 @@ export class Auth<User extends UserIdentifier> {
 
     async isAuthenticated(request: Request): Promise<boolean> {
         const session = await this.#getSession(request);
-        return isNotEmpty(session?.data);
+        const id = session?.get?.("id");
+        return typeof id === "string" || typeof id === "number";
     }
 
     /**
@@ -194,26 +186,17 @@ export class Auth<User extends UserIdentifier> {
         return session;
     }
 
-    async #requireSession(request: Request, redirectTo?: string) {
-        const session = await this.#getSession(request);
-
-        if (!session) {
-            return this.#throwRedirectToLoginPage(
-                request,
-                redirectTo ?? new URL(request.url).pathname,
-                "some thing goes wrong"
-            );
-        }
-
-        return session;
-    }
-
     #clearSession = async (request: Request) => {
-        const session = await this.#requireSession(request);
-
+        const [err, session] = await tryCatch(
+            this.sessionStorage.getSession(request.headers.get("Cookie"))
+        );
+        // If we cannot get a session, default to a blank one so we can set a past-dated cookie safely.
+        const safeSession =
+            err || !session ? await this.sessionStorage.getSession() : session;
         return {
             headers: {
-                "Set-Cookie": await this.sessionStorage.destroySession(session),
+                "Set-Cookie":
+                    await this.sessionStorage.destroySession(safeSession),
             },
         };
     };

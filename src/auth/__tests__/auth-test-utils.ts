@@ -1,13 +1,12 @@
 import RedisMock from "ioredis-mock";
-import { data } from "react-router";
+import { createCookie, data } from "react-router";
 import { Auth, RedisStorageAdapter } from "~/auth";
 import type { AuthOptions } from "~/auth/types";
-import { tryCatch } from "~/utils";
 
 /**
  * Test user interface for authentication testing
  */
-interface TestUser {
+export interface TestUser {
     id: string;
     name?: string;
     token?: string;
@@ -17,15 +16,23 @@ export type DataWithResponseInit<TData = unknown> = ReturnType<
     typeof data<TData>
 >;
 
+export const COLLECTION_NAME = "auth_users";
+
+const redisClient = new RedisMock();
+
 /**
  * Redis storage adapter instance for test authentication
  */
 export const mockRedisAdapter = new RedisStorageAdapter<TestUser>(
-    "auth_users",
+    COLLECTION_NAME,
     {
-        redisClient: new RedisMock(),
+        redisClient,
     }
 );
+
+export const $cookie = createCookie("__test_session", {
+    secrets: ["your_session_secret_here"],
+});
 
 /**
  * Creates an Auth instance for testing purposes
@@ -80,8 +87,5 @@ export const mockRequest = (
  * @param res - The Response object
  * @returns The Location header value or null if not present
  */
-export const getLocation = (res: Response) => res.headers.get("Location");
-
-export const tryCatchResponse = <TResult>(
-    input: Promise<TResult> | (() => Promise<TResult>)
-) => tryCatch<TResult, Response>(input);
+export const getLocation = (res: Response | null = new Response()) =>
+    res?.headers.get("Location");

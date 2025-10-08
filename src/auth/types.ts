@@ -1,10 +1,11 @@
-import { Cookie, CookieOptions } from "react-router";
+import { CookieParseOptions, CookieSerializeOptions } from "react-router";
 import {
     AuthStorageAdapter,
     UserIdentifier,
 } from "~/auth/adapters/auth-storage-adapter";
 
-export type CookieStorageOptions = Cookie | (CookieOptions & { name: string });
+export type CookieStorageOptions = CookieParseOptions &
+    CookieSerializeOptions & { name: string; secrets: Array<string> };
 
 interface CommonAuthOptions {
     /** Cookie configuration for session storage */

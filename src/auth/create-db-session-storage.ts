@@ -1,4 +1,5 @@
 import {
+    CookieSerializeOptions,
     createCookieSessionStorage,
     createMemorySessionStorage,
     createSessionStorage,
@@ -40,7 +41,7 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
     return createSessionStorage<User>({
         deleteData: async (id: string) => {
             // 1️⃣ Get user before removing session
-            const [, user] = await storageAdapter.get(id);
+            const [, data] = await storageAdapter.get(id);
 
             // 2️⃣ Remove user session
             const [error] = await storageAdapter.remove(id);
@@ -52,14 +53,14 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
             }
 
             // 3️⃣ Also remove the user-session mapping
-            if (user) {
-                await storageAdapter.removeUserSession(user.id);
+            if (data?.user) {
+                await storageAdapter.removeUserSession(data.user.id);
             }
         },
 
         readData: async (sessionId: string) => {
             // 1️⃣ Retrieve user data associated with the sessionId if exist else return null
-            const [error, user] = await storageAdapter.get(sessionId);
+            const [error, sessionData] = await storageAdapter.get(sessionId);
 
             if (error) {
                 throw new DbSessionStorageError(
@@ -67,17 +68,26 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
                     HTTP_INTERNAL_SERVER_ERROR
                 );
             }
-            if (!user) {
+
+            // 2️⃣ Check if the session is expired
+            if (sessionData?.expires && sessionData.expires < new Date()) {
+                await storageAdapter.remove(sessionId);
+                return null;
+            }
+
+            if (!sessionData?.user) {
                 return null;
             }
 
             if (options.enableSingleSession) {
-                /* 2️⃣ Verify this session is still the active one for this user
+                /* 3️⃣ Verify this session is still the active one for this user
                If the active session doesn't match, the user was logged in elsewhere
                throw error to invalidate the session */
 
                 const [getUserSessionError, activeSessionId] =
-                    await storageAdapter.getUserActiveSession(user.id);
+                    await storageAdapter.getUserActiveSession(
+                        sessionData.user.id
+                    );
 
                 if (getUserSessionError) {
                     throw new DbSessionStorageError(
@@ -96,21 +106,14 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
                 }
             }
 
-            const [resetExpError] =
-                await storageAdapter.resetExpiration(sessionId);
-
-            if (resetExpError) {
-                throw new DbSessionStorageError(
-                    "Unable to reset user session",
-                    HTTP_INTERNAL_SERVER_ERROR
-                );
-            }
-
-            return user as unknown as FlashSessionData<User, User> | null;
+            return sessionData.user as unknown as FlashSessionData<
+                User,
+                User
+            > | null;
         },
 
-        updateData: async (id, data) => {
-            const [error] = await storageAdapter.update(id, data);
+        updateData: async (id, data, expires) => {
+            const [error] = await storageAdapter.update(id, data, expires);
 
             if (error) {
                 return throwError({
@@ -120,7 +123,7 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
             }
         },
         cookie: cookie,
-        createData: async (data) => {
+        createData: async (data, expires) => {
             if (!data) {
                 throw new Error("User data is required");
             }
@@ -151,7 +154,8 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
 
             const [error, storedUser] = await storageAdapter.set(
                 sessionId,
-                user
+                user,
+                expires
             );
 
             if (error || !storedUser) {
@@ -181,6 +185,13 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
 
 // ----------------------------------------------------------------------
 
+const defaultCookieOptions: CookieSerializeOptions = {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+};
+
 export const createAuthStorage = <User extends UserIdentifier>(
     options: AuthOptions<User>
 ) => {
@@ -201,15 +212,20 @@ export const createAuthStorage = <User extends UserIdentifier>(
     }
     let sessionStorage: SessionStorage<User, User>;
 
+    const cookie = {
+        ...defaultCookieOptions,
+        ...options.cookie,
+    };
+
     switch (options.sessionStorageType) {
         case "in-memory":
             sessionStorage = createMemorySessionStorage<User>({
-                cookie: options.cookie,
+                cookie,
             });
             break;
         case "in-cookie-only":
             sessionStorage = createCookieSessionStorage<User>({
-                cookie: options.cookie,
+                cookie,
             });
             break;
 
@@ -223,7 +239,7 @@ export const createAuthStorage = <User extends UserIdentifier>(
             }
             sessionStorage = createDbSessionStorage(
                 options.storageAdapter,
-                options.cookie,
+                cookie,
                 {
                     enableSingleSession: options.enableSingleSession,
                 }

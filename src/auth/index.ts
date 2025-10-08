@@ -5,3 +5,4 @@ export type {
     UserIdentifier,
 } from "./adapters/auth-storage-adapter";
 export { Auth } from "./auth";
+export * from "./types";
