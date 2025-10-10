@@ -2,7 +2,7 @@ import { redirect, SessionStorage } from "react-router";
 import { UserIdentifier } from "~/auth/adapters/auth-storage-adapter";
 import { createAuthStorage, DbSessionStorageError, } from "~/auth/create-db-session-storage";
 import { AuthOptions } from "~/auth/types";
-import { HTTP_FOUND, HTTP_INTERNAL_SERVER_ERROR, HTTP_UNAUTHORIZED, } from "~/http-client/status-code";
+import { HTTP_FOUND, HTTP_INTERNAL_SERVER_ERROR, } from "~/http-client/status-code";
 import { safeRedirect, throwError, tryCatch, typedKeys } from "~/utils";
 import { isNotEmpty } from "~/utils/is-not-empty";
 
@@ -27,7 +27,6 @@ export class Auth<User extends UserIdentifier> {
      */
     constructor(options: AuthOptions<User>) {
         this.sessionStorage = createAuthStorage(options);
-
         this.#loginPageUrl = options.loginPageUrl ?? this.#loginPageUrl;
         this.#logoutPageUrl = options.logoutPageUrl ?? this.#logoutPageUrl;
     }
@@ -46,7 +45,6 @@ export class Auth<User extends UserIdentifier> {
         for (const prop of userProps) {
             session.set(prop, user[prop]);
         }
-
         return safeRedirect(redirectTo, {
             headers: {
                 "Set-Cookie": await this.sessionStorage.commitSession(session),
@@ -124,7 +122,7 @@ export class Auth<User extends UserIdentifier> {
      *
      * @param {Request} request - The incoming client request object, containing session and user information.
      * @param {string} [redirectUrl] - Optional URL to redirect to after logout. If not provided, redirects to the login page.
-     * @return {Promise<Response>} A response object containing the redirection and updated headers with the destroyed session cookie.
+     * @returns {Promise<Response>} A response object containing the redirection and updated headers with the destroyed session cookie.
      */
     async logoutAndRedirect(
         request: Request,
@@ -132,34 +130,6 @@ export class Auth<User extends UserIdentifier> {
     ): Promise<Response> {
         const headers = await this.#clearSession(request);
         return redirect(redirectUrl ?? this.#loginPageUrl, headers);
-    }
-
-    /**
-     * Retrieves the authentication token of the current user.
-     *
-     * @param request - The incoming request object
-     * @returns A promise that resolves to the user's authentication token
-     * @throws {Error} If user is not authenticated or does not have a token
-     * @throws {Response} Redirects to login page if user is not authenticated
-     *
-     * @remarks
-     * This method expects the User type to include a token property.
-     * Only use this method if you are certain the user object will contain a token,
-     * otherwise it will throw an error.
-     */
-    async requireAccessToken<T extends UserIdentifier & { token?: string }>(
-        request: Request
-    ): Promise<string> {
-        const user = (await this.requireUserOrRedirect(request)) as never as T;
-
-        if (!user?.token) {
-            return throwError({
-                message: "Authenticated user lacks the required token property",
-                status: HTTP_UNAUTHORIZED,
-            });
-        }
-
-        return user.token;
     }
 
     async #getSession(request: Request) {

@@ -1,11 +1,10 @@
 {
-  "categories": {
-    "correctness": "error"
-  },
-  "plugins": [
-    "react",
-    "promise",
-    "node",
-    "vitest"
-  ]
+    "categories": {
+        "correctness": "error"
+    },
+    "plugins": ["react", "promise", "node", "vitest", "jsdoc"],
+    "rules": {
+        "sort-vars": "error",
+        "sort-keys": "error"
+    }
 }

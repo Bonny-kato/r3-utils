@@ -45,89 +45,6 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
     options: DbSessionStorageOptions
 ) => {
     return createSessionStorage<User>({
-        deleteData: async (id: string) => {
-            // 1️⃣ Get user before removing session
-            const [, data] = await storageAdapter.get(id);
-
-            // 2️⃣ Remove user session
-            const [error] = await storageAdapter.remove(id);
-            if (error) {
-                throwError({
-                    message: error?.message,
-                    status: HTTP_INTERNAL_SERVER_ERROR,
-                });
-            }
-
-            // 3️⃣ Also remove the user-session mapping
-            if (data?.user) {
-                await storageAdapter.removeUserSession(data.user.id);
-            }
-        },
-
-        readData: async (sessionId: string) => {
-            // 1️⃣ Retrieve user data associated with the sessionId if exist else return null
-            const [error, sessionData] = await storageAdapter.get(sessionId);
-
-            if (error) {
-                throw new DbSessionStorageError(
-                    error.message,
-                    HTTP_INTERNAL_SERVER_ERROR
-                );
-            }
-
-            // 2️⃣ Check if the session is expired
-            if (sessionData?.expires && sessionData.expires < new Date()) {
-                await storageAdapter.remove(sessionId);
-                return null;
-            }
-
-            if (!sessionData?.user) {
-                return null;
-            }
-
-            if (options.enableSingleSession) {
-                /* 3️⃣ Verify this session is still the active one for this user
-               If the active session doesn't match, the user was logged in elsewhere
-               throw error to invalidate the session */
-
-                const [getUserSessionError, activeSessionId] =
-                    await storageAdapter.getUserActiveSession(
-                        sessionData.user.id
-                    );
-
-                if (getUserSessionError) {
-                    throw new DbSessionStorageError(
-                        getUserSessionError.message,
-                        HTTP_INTERNAL_SERVER_ERROR
-                    );
-                }
-
-                if (activeSessionId !== sessionId) {
-                    await storageAdapter.remove(sessionId);
-
-                    throw new DbSessionStorageError(
-                        "Your session was terminated because you already an active session somewhere else",
-                        HTTP_FOUND
-                    );
-                }
-            }
-
-            return sessionData.user as unknown as FlashSessionData<
-                User,
-                User
-            > | null;
-        },
-
-        updateData: async (id, data, expires) => {
-            const [error] = await storageAdapter.update(id, data, expires);
-
-            if (error) {
-                return throwError({
-                    message: error.message,
-                    status: HTTP_INTERNAL_SERVER_ERROR,
-                });
-            }
-        },
         cookie: cookie,
         createData: async (data, expires) => {
             if (!data) {
@@ -186,6 +103,87 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
             }
             return sessionId;
         },
+        deleteData: async (id: string) => {
+            // 1️⃣ Get user before removing session
+            const [, data] = await storageAdapter.get(id);
+
+            // 2️⃣ Remove user session
+            const [error] = await storageAdapter.remove(id);
+            if (error) {
+                throwError({
+                    message: error?.message,
+                    status: HTTP_INTERNAL_SERVER_ERROR,
+                });
+            }
+
+            // 3️⃣ Also remove the user-session mapping
+            if (data?.user) {
+                await storageAdapter.removeUserSession(data.user.id);
+            }
+        },
+        readData: async (sessionId: string) => {
+            // 1️⃣ Retrieve user data associated with the sessionId if exist else return null
+            const [error, sessionData] = await storageAdapter.get(sessionId);
+
+            if (error) {
+                throw new DbSessionStorageError(
+                    error.message,
+                    HTTP_INTERNAL_SERVER_ERROR
+                );
+            }
+
+            // 2️⃣ Check if the session is expired
+            if (sessionData?.expires && sessionData.expires < new Date()) {
+                await storageAdapter.remove(sessionId);
+                return null;
+            }
+
+            if (!sessionData?.user) {
+                return null;
+            }
+
+            if (options.enableSingleSession) {
+                /* 3️⃣ Verify this session is still the active one for this user
+               If the active session doesn't match, the user was logged in elsewhere
+               throw error to invalidate the session */
+
+                const [getUserSessionError, activeSessionId] =
+                    await storageAdapter.getUserActiveSession(
+                        sessionData.user.id
+                    );
+
+                if (getUserSessionError) {
+                    throw new DbSessionStorageError(
+                        getUserSessionError.message,
+                        HTTP_INTERNAL_SERVER_ERROR
+                    );
+                }
+
+                if (activeSessionId !== sessionId) {
+                    await storageAdapter.remove(sessionId);
+
+                    throw new DbSessionStorageError(
+                        "Your session was terminated because you already an active session somewhere else",
+                        HTTP_FOUND
+                    );
+                }
+            }
+
+            return sessionData.user as unknown as FlashSessionData<
+                User,
+                User
+            > | null;
+        },
+        updateData: async (id, data, expires) => {
+            const [error] = await storageAdapter.update(id, data, expires);
+
+            if (error) {
+                return throwError({
+                    message: error.message,
+                    status: HTTP_INTERNAL_SERVER_ERROR,
+                });
+            }
+        },
     });
 };
 
@@ -193,8 +191,8 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
 
 const defaultCookieOptions: CookieSerializeOptions = {
     httpOnly: true,
-    sameSite: "lax",
     path: "/",
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
 };
 

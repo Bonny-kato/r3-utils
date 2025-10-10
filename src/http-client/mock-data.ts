@@ -21,7 +21,7 @@ export const mockApiData = <TData>(
 ): GenerateMockData<TData> => ({
     data: Array.from({ length: counts }, (_, index) => generator(index)),
     pagination: {
-        totalPages: 1,
         currentPage: 1,
+        totalPages: 1,
     },
 });
