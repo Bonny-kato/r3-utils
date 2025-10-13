@@ -2,97 +2,47 @@
 
 ## Introduction
 
-The Auth module provides a comprehensive authentication solution for React Router applications. It offers a flexible and
+The Auth module provides a comprehensive authentication solution for [React Router](https://reactrouter.com/)
+and [Remix](https://v2.remix.run/docs/start/quickstart/)
+applications. It offers a flexible and
 type-safe way to manage user authentication, sessions, and protected routes. This module is designed to work seamlessly
-with React Router's cookie-based session storage mechanism.
+with React Router's built-in cookie-based session storage mechanism.
 
 ## Features
 
 - Cookie-based session management
-- Flexible storage adapters for user data persistence
+- Built-in support for database-based session storage via auth storage adapters
+- Built-in support for Redis-based session storage
+- Support for custom storage adapters
+- Support for both session concurrency and single session per user with database session storage
 - Type-safe authentication with TypeScript generics
 - Redirect handling for unauthenticated users
 - Methods for login, logout, and session management
-- Support for custom login and logout URLs
+- Support for custom login route to redirect unauthenticated users
 
-## API
-
-### Auth Class
-
-The main class that provides authentication functionality.
-
-```typescript
-class Auth<User extends UserIdentifier> {
-    constructor(options: AuthOptions<User>);
-
-    // Methods
-    async loginAndRedirect(user: User, redirectTo: string): Promise<Response>;
-
-    async updateSession(request: Request, user: User, redirectTo: string): Promise<Response>;
-
-    getSession(request: Request);
-
-    async getSession(request: Request): Promise<string | null>;
-
-    requireUserOrRedirect(request: Request, redirectTo?: string);
-
-    async logout(request: Request): Promise<Response>;
-
-    async requireAccessToken(request: Request): Promise<string>;
-
-    async getUserIdOrNull(request: Request): Promise<string | null>;
-
-    async getAuthUsers(request: Request);
-}
-```
-
-### AuthOptions Interface
-
-Configuration options for the Auth class.
-
-```typescript
-interface AuthOptions<User extends UserIdentifier> {
-    storageAdapter?: AuthStorageAdapter<User>;
-    collectionName?: string;
-    cookie: CookieSessionStorageOptions["cookie"];
-    loginPageUrl?: string;
-    logoutPageUrl?: string;
-}
-```
-
-### AuthStorageAdapter Interface
-
-Interface for storage adapters that persist user data.
-
-```typescript
-interface AuthStorageAdapter<User extends UserIdentifier> {
-    get(id: UserId): Promise<User | null>;
-
-    set(id: UserId, user: User): Promise<void>;
-
-    remove(id: UserId): Promise<void>;
-
-    getAll(): Promise<User[]>;
-}
-```
-
-## Usage Examples
+## Usage
 
 ### Basic Setup
 
-```typescript
-import { Auth } from 'r3-utils/auth';
-import { JsonStorageAdapter } from 'r3-utils/auth/adapters/json';
+By default, it works the same as React
+Router's [createCookieSessionStorage](https://api.reactrouter.com/v7/functions/react_router.createCookieSessionStorage.html),
+meaning all authenticated user data will be stored in a cookie.
 
-// Define your user type
-interface User {
-    id: string;
+> Note: Be aware that data might exceed the cookie size limit of 4KB. If you exceed that limit, React Router will
+> [throw an error](https://github.com/remix-run/react-router/blob/b843323a91e3750685198173ff599b6c39afb133/packages/react-router/lib/server-runtime/sessions/cookieStorage.ts#L47).
+> If you want to store more data, you can use a different storage type.
+
+#### Example
+
+```ts
+import { Auth } from "r3-utils/auth";
+
+type User = {
+    id: string; // 👈 must contain id
     username: string;
-    email: string;
-    token?: string;
+    // other user data
 }
 
-// Create an auth instance
 const auth = new Auth<User>({
     cookie: {
         name: 'my_app_session',
@@ -103,55 +53,360 @@ const auth = new Auth<User>({
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
     },
-    // Optional: custom storage adapter
-    storageAdapter: new JsonStorageAdapter<User>('users'),
-    // Optional: custom login/logout URLs
-    loginPageUrl: '/signin',
-    logoutPageUrl: '/signout',
-});
-```
+})
 
-### Login Handler
 
-```typescript
-// In a login route handler
-export async function action({ request }: ActionFunctionArgs) {
-    const formData = await request.formData();
-    const username = formData.get('username') as string;
-    const password = formData.get('password') as string;
-
-    // Validate credentials and get user from your API
-    const user = await authenticateUser(username, password);
-
-    if (!user) {
-        return json({ error: 'Invalid credentials' }, { status: 401 });
-    }
-
-    // Get the redirect URL from the query string or use a default
-    const url = new URL(request.url);
-    const redirectTo = url.searchParams.get('redirectTo') || '/dashboard';
-
-    // Login and redirect
-    return auth.loginAndRedirect(user, redirectTo);
+export const loader = async ({ request }) => {
+    // your code here
+    const user = await login(request) // authenticate it with your api
+    return auth.loginAndRedirect(user, '/dashboard') // redirect to dashboard
 }
 ```
 
-### Protected Route
+### Advanced Setup with Database
 
-```typescript
-// In a loader function for a protected route
-export async function loader({ request }: LoaderFunctionArgs) {
-    // This will redirect to login if user is not authenticated
+With this setup, you can store your user data in a database. This allows you to store more authenticated user data with
+no
+limitation. Additionally, with this setup you can control session modality, which can be either single or multiple
+sessions per user at
+the same time.
+
+
+> **Note:** This is a custom session storage type built on top of React-Router's
+> [createSessionStorage](https://reactrouter.com/explanation/sessions-and-cookies#creating-custom-session-storage),
+> which is already hooked into the session storage while allowing consumers to provide their own database session
+> storage
+> adapter to work with.
+
+To enable this, set `sessionStorageType` to `in-custom-db` and specify your storage adapter if you have one, or you can
+use the
+built-in production-ready `RedisStorageAdapter`.
+
+#### Example
+
+```ts
+import { Auth, RedisStorageAdapter } from "r3-utils/auth";
+
+type User = {
+    id: string; // 👈 must contain id
+    username: string;
+    // other user data
+}
+
+const redisStorageAdapter = new RedisStorageAdapter<User>('users', {
+    host: 'localhost',
+    port: 6379,
+    // Other Redis options
+});
+
+const auth = new Auth({
+    // still need cookie for storing session id in browser
+    cookie: {
+        name: 'my_app_session',
+        secrets: ['s3cr3t'],
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+    },
+    enableSingleSession: true, // by default is false, which means users can have many active sessions
+    sessionStorageType: "in-custom-db",
+    storageAdapter: redisStorageAdapter,
+})
+
+
+export const loader = async ({ request }) => {
+    // your code here
+    const user = await login(request) // authenticate it with your api
+    return auth.loginAndRedirect(user, '/dashboard') // redirect to dashboard
+}
+```
+
+## Auth APIs
+
+#### loginAndRedirect
+
+After authenticating your user and getting the user object back, you will call the `loginAndRedirect` method to create a
+user session and
+redirect to the specified route.
+
+```ts
+import { auth } from "./auth"
+
+export const loader = async ({ request }) => {
+    // your code here
+    const user = await login(request) // authenticate it with your api
+    return auth.loginAndRedirect(user, '/dashboard') // redirect to dashboard
+}
+```
+
+### logoutAndRedirect
+
+This method will log out the user and redirect to the specified route if provided, or to the default login route.
+
+```ts
+import { auth } from "./auth"
+
+export const loader = async ({ request }) => {
+    return auth.logoutAndRedirect(request)
+}
+```
+
+> **Pro Tip**: You can customize the default login route by setting the `loginRoute` option when creating the auth
+> instance.
+
+### updateSession
+
+This method will update user session data. The method allows you to update user data and redirect to the specified
+route or return a responseInit object that you will use when returning a response.
+
+**with redirect**
+
+```ts
+export const action = async ({ request }) => {
+
+    const updatedInfo = await updateUserInfo(request)
+    return auth.updateSession(request, updatedInfo, '/dashboard')
+}
+```
+
+**without redirect**
+This is useful when your action returns a specific format of response that you want to return to the client.
+
+```ts
+import { tryCatch } from "./try-catch";
+import { data } from "react-router";
+
+export const action = async ({ request }) => {
+
+    const [error, updatedUser] = await tryCatch(async () => {
+        return updateUserInfo(request)
+    });
+
+    const responseInit = await updateSession(request, updatedInfo);
+
+    return data([errors, updatedUser], responseInit);
+}
+```
+
+### requireUserOrRedirect
+
+Will return a user object if the user is authenticated or redirect to the login route. Useful when you need to work with
+user information.
+
+```ts
+import { tryCatch } from "./try-catch";
+import { data } from "react-router";
+
+export const loader = async ({ request }) => {
     const user = await auth.requireUserOrRedirect(request);
 
-    // Fetch additional data for the authenticated user
-    const userData = await fetchUserData(user.id);
+    const users = httpClient.get("/users", {
+        header: {
+            Authorization: `Bearer ${user.token}`
+        }
+    });
 
-    return json({ user, userData });
+    return data(users);
 }
 ```
 
-### Logout Handler
+> **Pro Tip:** You can use this method to protect your loaders and actions by making sure the user is authenticated
+> before
+> you call your API.
+
+### isAuthenticated
+
+This method will return true if the user is authenticated or false if not. Useful when you need to check if the user is
+authenticated.
+
+```ts
+import { data } from "react-router";
+
+export const loader = async ({ request }) => {
+    const authenticated = await auth.isAuthenticated(request);
+
+    if (!authenticated) {
+        // do something
+    }
+    return data(users);
+}
+```
+
+## Session Storage Adapters
+
+The auth module comes with first-class support for Redis session storage adapter and a well-designed interface for
+creating custom session storage adapters.
+
+### Redis Storage Adapter
+
+This is a production-ready Redis session storage adapter built on top of the [ioredis](https://github.com/redis/ioredis)
+package that you can use to store your user data in Redis.
+
+#### Collection name
+
+When you create a new instance of `RedisStorageAdapter`, you need to specify the collection name that will be used to
+store your user data.
+
+#### Options
+
+It extends all options from the [ioredis](https://github.com/redis/ioredis) package. The additional options are:
+
+**logging**
+
+- Logging configuration options for the adapter
+
+**redisClient**
+
+- Optional pre-configured Redis client instance to use
+
+**ttl**
+
+- Time-to-live in seconds for session data; will be overwritten when the cookie's maxAge or expires is specified
+
+### Custom Session Storage
+
+Despite the already provided Redis adapter, you may still need to use custom session storage for some reason. In
+that case, the auth module comes with first-class support for custom session storage.
+
+For your custom session storage, you need to implement the `AuthStorageAdapter` interface. Here is an example of an
+in-memory
+custom session storage adapter.
+
+```ts
+import { AuthStorageAdapter } from "r3-utils/auth";
+
+export class MemoryStorageAdapter<User extends UserIdentifier>
+    implements AuthStorageAdapter<User> {
+    readonly #collectionName: string;
+
+    // storage per instance; namespaced by collectionName
+    #store: Map<string, SessionData<User>> = new Map();
+
+    // userId -> active sessionId mapping (for single-session feature)
+    #sessions: Map<string, string> = new Map();
+
+    constructor(collectionName: string) {
+        this.#collectionName = collectionName;
+    }
+
+    // ----------------------
+    // User-session mappings
+    // ----------------------
+    setUserSession(
+        userId: UserId,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            this.#sessions.set(String(userId), sessionId);
+            return true;
+        });
+    }
+
+    getUserActiveSession(
+        userId: UserId
+    ): Promise<TryCatchResult<string | null>> {
+        return tryCatch(async () => {
+            return this.#sessions.get(String(userId)) ?? null;
+        });
+    }
+
+    removeUserSession(userId: UserId): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            return this.#sessions.delete(String(userId));
+        });
+    }
+
+    async remove(sessionId: string) {
+        return tryCatch(async () => {
+            const key = this.#generateKey(sessionId);
+            const [error, exists] = await this.has(sessionId);
+            if (error) return false;
+            if (exists) return this.#store.delete(key);
+            return true;
+        });
+    }
+
+    async get(sessionId: string) {
+        return tryCatch(async () => {
+            const key = this.#generateKey(sessionId);
+            return this.#store.get(key) ?? null;
+        });
+    }
+
+    async has(sessionId: string) {
+        return tryCatch<boolean>(async () => {
+            const key = this.#generateKey(sessionId);
+            const sessionData = this.#store.get(key);
+
+            return Boolean(sessionData);
+        });
+    }
+
+    async set(sessionId: string, data: User, expires?: Date) {
+        return tryCatch<SessionData<User>>(async () => {
+            const key = this.#generateKey(sessionId);
+
+            const sessionData: SessionData<User> = { user: data, expires };
+            this.#store.set(key, sessionData);
+
+            return sessionData;
+        });
+    }
+
+    update(sessionId: string, data: Partial<User>, expires?: Date) {
+        return tryCatch<SessionData<User>>(async () => {
+            const [getErr, existing] = await this.get(sessionId);
+            if (getErr) throw getErr;
+            if (!existing)
+                throw new Error(
+                    `User with session id ${String(sessionId)} not found`
+                );
+
+            const updatedUser = { ...existing.user, ...data } as User;
+            const [setErr, result] = await this.set(
+                sessionId,
+                updatedUser,
+                expires
+            );
+            if (setErr) throw setErr;
+            return result!;
+        });
+    }
+
+    clear() {
+        this.#store.clear();
+        this.#sessions.clear();
+    }
+
+    #generateKey(sessionId: string) {
+        return `${this.#collectionName}:${String(sessionId)}`;
+    }
+}
+```
+
+Here is how you can use it with auth.
+
+```ts
+const inMemoryStorageAdapter = new MemoryStorageAdapter<User>('users');
+
+const auth = new Auth({
+    // still need cookie for storing session id in browser
+    cookie: {
+        name: 'my_app_session',
+        secrets: ['s3cr3t'],
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+    },
+    enableSingleSession: true, // by default is false, which means users can have many active sessions
+    sessionStorageType: "in-custom-db",
+    storageAdapter: inMemoryStorageAdapter,
+})
+```
 
 ```typescript
 // In a logout route handler
@@ -160,225 +415,137 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 ```
 
-## Adapters
+## Testing
 
-The Auth module uses storage adapters to persist user data. These adapters provide a consistent interface for storing
-and retrieving user information while allowing flexibility in the underlying storage mechanism.
+The auth module provides support for testing your authentication flow. You can test both session storage types (
+in-memory
+and in-custom-db).
 
-### Available Adapters
+### in-memory storage
 
-The Auth module comes with two built-in storage adapters:
+This is built on top
+of [createMemorySessionStorage](https://reactrouter.com/api/utils/createMemorySessionStorage#creatememorysessionstorage).
+To enable it, set `sessionStorageType="in-memory"` when writing unit or integration
+tests. This keeps the session state entirely in the Node.js process memory, so there is no external dependency (
+DB/Redis),
+and each test run starts from a clean slate.
 
-#### JsonStorageAdapter (Default)
+> **Important:** In-memory storage is intended for tests and local experimentation only. It is not persistent and must
+> not
+> be used in production.
 
-A simple file-based storage adapter that uses JSON files for persistence. This is the default adapter used when no
-adapter is specified.
+Example:
 
-```typescript
-import { JsonStorageAdapter } from 'r3-utils/auth';
+```ts
+import { Auth } from "r3-utils/auth";
 
-const auth = new Auth<User>({
-    cookie: { /* ... */ },
-    storageAdapter: new JsonStorageAdapter<User>('users'),
+// Define the minimal user shape your app uses in tests
+type TestUser = { id: string; username?: string; token?: string };
+
+// Create an Auth instance that uses in-memory session storage
+export const auth = new Auth<TestUser>({
+    sessionStorageType: "in-memory",
+    cookie: {
+        name: "__test_session",
+        secrets: ["test_secret"],
+        sameSite: "lax",
+        path: "/",
+        // Optionally shorten cookie lifetime in tests
+        // maxAge: 60, // 60 seconds
+    },
 });
 ```
 
-**Key features:**
+### in-custom-db
 
-- Simple setup with no external dependencies
-- Stores data in a local JSON file named 'db.json' in the project root
-- Uses SimpleDB under the hood for file operations
+You can create an in-memory storage adapter and use it as your storage adapter for testing, or you can install the
+`ioredis-mock`
+package and pass it as an optional parameter in RedisStorageAdapter.
 
-**Recommended for:**
+Example:
 
-- Local development environments
-- Simple applications with low traffic
-- Prototyping and testing
-- Situations where you don't want to set up additional infrastructure
+```ts
+import RedisMock from "ioredis-mock";
 
-**Not recommended for:**
+const redisClient = new RedisMock();
 
-- Production environments with high traffic
-- Applications that need to scale across multiple servers
-- Performance-critical applications
+export const mockRedisAdapter = new RedisStorageAdapter<TestUser>(
+    COLLECTION_NAME,
+    {
+        redisClient,
+    }
+);
 
-#### RedisStorageAdapter
-
-A high-performance adapter that uses Redis for data storage.
-
-```typescript
-import { RedisStorageAdapter } from 'r3-utils/auth';
-
-const auth = new Auth<User>({
-    cookie: { /* ... */ },
-    storageAdapter: new RedisStorageAdapter<User>('users', {
-        host: 'localhost',
-        port: 6379,
-        // Other Redis options
-    }),
+const auth = new Auth<TestUser>({
+    cookie: {
+        name: "__test_session",
+        secrets: ["your_session_secret_here"],
+    },
+    sessionStorageType: "in-custom-db",
+    storageAdapter: mockRedisAdapter,
+    ...overrides,
 });
 ```
 
-**Key features:**
+### Typical test flow (Vitest/Jest)
 
-- High performance and scalability
-- Uses Redis pipelines for efficient operations
-- Stores user data as JSON strings in Redis
-- Maintains a set of all user IDs for efficient retrieval
+1. Call `loginAndRedirect(user, redirectTo)` to simulate a successful login.
+2. Read the `Set-Cookie` header from the response and carry it into subsequent requests via the `Cookie` header.
+3. Use `isAuthenticated(request)` or `requireUserOrRedirect(request)` in later steps to assert auth state.
 
-**Recommended for:**
+```ts
+import { describe, it, expect } from "vitest";
 
-- Production environments
-- High-traffic applications
-- Applications that need to scale across multiple servers
-- Situations where performance is critical
+// helper to create a Request with an optional cookie
+const req = (url: string, cookie?: string) =>
+    new Request(`http://localhost${url}`, {
+        headers: cookie ? { Cookie: cookie } : undefined,
+    });
 
-**Requirements:**
+it("logs in and stays authenticated across requests", async () => {
+    // 1) perform login
+    const res = await auth.loginAndRedirect({ id: "u1", username: "Jane" }, "/");
+    const cookie = res.headers.get("set-cookie")!.split(";")[0];
 
-- Requires a Redis server
-- Depends on the 'ioredis' package
-
-### Adapter Selection Guide
-
-| Adapter             | Default | Local Development              | Production        | Key Advantage                 | Key Limitation                              |
-|---------------------|---------|--------------------------------|-------------------|-------------------------------|---------------------------------------------|
-| JsonStorageAdapter  | ✅       | ✅ Recommended                  | ❌ Not recommended | Simple setup, no dependencies | Performance limitations with large datasets |
-| RedisStorageAdapter | ❌       | ⚠️ Possible but requires Redis | ✅ Recommended     | High performance, scalable    | Requires Redis server setup                 |
-
-### Implementing a Custom Adapter
-
-You can create custom storage adapters by implementing the `AuthStorageAdapter` interface. This allows you to integrate
-with any database or storage system of your choice.
-
-#### Required Methods
-
-To implement a custom adapter, you need to implement the following methods:
-
-| Method              | Description              | Parameters                             | Return Type                  |
-|---------------------|--------------------------|----------------------------------------|------------------------------|
-| `has(userId)`       | Check if a user exists   | `userId: string \| number`             | `Promise<boolean>`           |
-| `get(userId)`       | Retrieve user by ID      | `userId: string \| number`             | `Promise<User \| undefined>` |
-| `set(userId, data)` | Create or update user    | `userId: string \| number, data: User` | `Promise<void>`              |
-| `remove(userId)`    | Remove user from storage | `userId: string \| number`             | `Promise<void>`              |
-| `getAll()`          | List all users           | None                                   | `Promise<User[]>`            |
-
-#### Example Implementation
-
-Here's an example of a custom adapter that uses a database:
-
-```typescript
-import { AuthStorageAdapter, UserId } from 'r3-utils/auth';
-
-class DatabaseStorageAdapter<User extends { id: string }> implements AuthStorageAdapter<User> {
-    constructor(private db: Database) {
-    }
-
-    async has(userId: UserId): Promise<boolean> {
-        const user = await this.db.users.findOne({ id: userId });
-        return !!user;
-    }
-
-    async get(userId: UserId): Promise<User | undefined> {
-        return this.db.users.findOne({ id: userId });
-    }
-
-    async set(userId: UserId, user: User): Promise<void> {
-        await this.db.users.upsert({ id: userId }, user);
-    }
-
-    async remove(userId: UserId): Promise<void> {
-        await this.db.users.delete({ id: userId });
-    }
-
-    async getAll(): Promise<User[]> {
-        return this.db.users.findAll();
-    }
-}
-
-// Use with Auth
-const auth = new Auth<User>({
-    cookie: { /* ... */ },
-    storageAdapter: new DatabaseStorageAdapter(myDatabase),
+    // 2) subsequent request includes the cookie
+    const request2 = req("/protected", cookie);
+    const authed = await auth.isAuthenticated(request2);
+    expect(authed).toBe(true);
 });
 ```
 
-#### Implementation Tips
+### Tips
 
-When implementing a custom adapter:
+- You still need to provide a cookie configuration; the cookie holds the session ID even in in-memory mode.
+- Features that depend on database adapters (like `enableSingleSession`) are only available with
+  `sessionStorageType: "in-custom-db"`.
+- If you later switch to Redis or a custom adapter, your test code can largely stay the same—only the
+  `sessionStorageType` and adapter need to change.
 
-1. **Type Safety**: Use TypeScript generics to ensure type safety with your user model
-2. **Error Handling**: Implement proper error handling in all methods
-3. **Performance**: Consider caching strategies for frequently accessed data
-4. **Consistency**: Ensure atomic operations when possible to maintain data consistency
-5. **Testing**: Thoroughly test your adapter with various scenarios
+## Copy and Paste
 
-You can use the built-in adapters as reference implementations when creating your own.
+Sometimes you may want to copy and paste the code from this package into your own project. Here is a guide on how to do
+it:
+
+1. Copy the auth folder into your project.
+2. Copy dependency utilities (e.g., `tryCatch` from `src/auth/utils`) used in `AuthStorageAdapter` type.
+3. Create HTTP status constants, only the ones used in `auth.ts` and testing files if you are using them.
+4. Install Redis dependency if you are using the Redis storage adapter.
+5. If you don't need testing files, you can safely remove them.
+
+> Important: You need to be using react-router ^7.0.0 to use this module.
+
+## Known Issues
+
+- As of now, single session works correctly when enabled from the beginning. However, if it was previously multi-session
+  and you enable single session, the previous sessions will not be removed—only new ones. This will be fixed in the
+  future.
 
 ## Best Practices
 
 1. **Secure Cookies**: Always use `httpOnly` and `secure` (in production) for your cookies to prevent XSS attacks.
 2. **Strong Secrets**: Use strong, unique secrets for your cookie encryption.
-3. **Type Safety**: Leverage TypeScript generics to ensure type safety throughout your authentication flow.
-4. **Custom Redirects**: Use the redirect parameters to create a seamless user experience when redirecting
-   unauthenticated users.
-5. **Error Handling**: Implement proper error handling around authentication functions to provide meaningful feedback to
-   users.
-
-## Integration with React Router
-
-This module is designed to work with React Router's session management. It leverages React Router's
-`createCookieSessionStorage` for managing session cookies, making it a perfect fit for React Router applications.
-
-## Redis Storage Adapter
-
-The Redis-based storage adapter provides high-performance storage for authenticated users. You can configure a per-user
-TTL and fine-grained logging.
-
-### Options
-
-```ts
-interface RedisLoggingConfig {
-    enabled: boolean;
-    level: "error" | "warn" | "info" | "debug";
-    logger?: (level: string, message: string, data?: Record<string, unknown>) => void;
-    logConnectionEvents?: boolean;
-    logTiming?: boolean;
-}
-
-interface RedisStorageAdapterOptions extends RedisOptions {
-    /** Optional: toggle and configure logging */
-    logging?: RedisLoggingConfig;
-    /** Optional: provide an existing ioredis client instance */
-    redisClient?: Redis;
-    /** Optional: session TTL in seconds (default: 600 = 10 minutes) */
-    ttl?: number;
-}
-```
-
-### Usage
-
-```ts
-import { RedisStorageAdapter } from 'r3-utils/auth/adapters/redis';
-
-const storage = new RedisStorageAdapter<User>('users', {
-    ttl: 15 * 60, // 15 minutes
-    logging: {
-        enabled: true,
-        level: 'info',
-        logConnectionEvents: true,
-        logTiming: true,
-    },
-    // Optionally reuse an existing Redis client via `redisClient`
-});
-
-const auth = new Auth<User>({
-    cookie: { /* ... */ },
-    storageAdapter: storage,
-});
-```
-
-Notes:
-
-- ttl defaults to 600 seconds if not provided.
-- Provide a custom logger to redirect logs to your logging system.
-- You may pass an existing ioredis client via `redisClient` for shared connections.
+3. **Cookie Expiration**: Always set an expiration date for your cookies to prevent them from persisting indefinitely.
+   You can use the `maxAge` or `expires` option.
+4. **Type Safety**: Leverage TypeScript generics to ensure type safety throughout your authentication flow.
+5. **Database Session Storage**: Use database session storage for production if you need to store more data.

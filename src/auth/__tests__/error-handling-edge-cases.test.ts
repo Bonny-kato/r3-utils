@@ -5,64 +5,81 @@ import {
     getSessionCookie,
     mockRedisAdapter,
     mockRequest,
-} from "~/auth/__tests__/auth-test-utils";
+    TestUser,
+} from "~/auth/auth-test-utils";
 import { HTTP_INTERNAL_SERVER_ERROR } from "~/http-client/status-code";
+import { tryCatch } from "~/utils";
 
 describe("Auth: Error Handling & Edge Cases", () => {
     afterEach(async () => {
         vi.restoreAllMocks();
     });
 
-    it("Adapter error paths: get/set/remove throw -> 500 error via data()", async () => {
+    it("should return 500 error when adapter set fails during login", async () => {
         const auth = createMockAuth();
 
-        // set error on login
         const setSpy = vi
             .spyOn(mockRedisAdapter, "set")
             .mockResolvedValue([new Error("Unable to store auth user"), null]);
-        try {
-            await auth.loginAndRedirect({ id: "e1" }, "/");
-            expect.unreachable("Expected set error");
-        } catch (e) {
-            const err = e as DataWithResponseInit;
-            expect(err.init?.status).toBe(HTTP_INTERNAL_SERVER_ERROR);
-            expect(err.data).toBe("Unable to store auth user");
-        } finally {
-            setSpy.mockRestore();
-        }
 
-        // get error on requireUserOrRedirect
+        const [loginError, response] = await tryCatch<
+            Response,
+            DataWithResponseInit
+        >(async () => {
+            return await auth.loginAndRedirect({ id: "e1" }, "/");
+        });
+
+        expect(response).toBe(null);
+        expect(loginError?.init?.status).toBe(HTTP_INTERNAL_SERVER_ERROR);
+        expect(loginError?.data).toBe("Unable to store auth user");
+
+        setSpy.mockRestore();
+    });
+
+    it("should throw 500 error when adapter get fails during requireUserOrRedirect", async () => {
+        const auth = createMockAuth();
+
         const res = await auth.loginAndRedirect({ id: "e2" }, "/");
         const cookie = getSessionCookie(res);
+
         const getSpy = vi
             .spyOn(mockRedisAdapter, "get")
             .mockResolvedValue([new Error("boom"), null]);
-        try {
-            await auth.requireUserOrRedirect(mockRequest("/", cookie));
-            expect.unreachable("Expected get error");
-        } catch (e) {
-            const err = e as DataWithResponseInit;
-            expect(err.init?.status).toBe(HTTP_INTERNAL_SERVER_ERROR);
-            expect(err.data).toBe("boom");
-        } finally {
-            getSpy.mockRestore();
-        }
 
-        // remove error on logout
-        const res2 = await auth.loginAndRedirect({ id: "e3" }, "/");
-        const cookie2 = getSessionCookie(res2);
+        const [error, response] = await tryCatch<
+            TestUser,
+            DataWithResponseInit
+        >(
+            async () =>
+                await auth.requireUserOrRedirect(mockRequest("/", cookie))
+        );
+
+        expect(response).toBe(null);
+        expect(error?.init?.status).toBe(HTTP_INTERNAL_SERVER_ERROR);
+        expect(error?.data).toBe("boom");
+
+        getSpy.mockRestore();
+    });
+
+    it("should throw 500 error when adapter remove fails during logout", async () => {
+        const auth = createMockAuth();
+
+        const res = await auth.loginAndRedirect({ id: "e3" }, "/");
+        const cookie = getSessionCookie(res);
+
         const removeSpy = vi
             .spyOn(mockRedisAdapter, "remove")
             .mockResolvedValue([new Error("nope"), null]);
-        try {
-            await auth.logoutAndRedirect(mockRequest("/", cookie2));
-            expect.unreachable("Expected remove error");
-        } catch (e) {
-            const err = e as DataWithResponseInit;
-            expect(err.init?.status).toBe(HTTP_INTERNAL_SERVER_ERROR);
-            expect(err.data).toBe("nope");
-        } finally {
-            removeSpy.mockRestore();
-        }
+
+        const [error, response] = await tryCatch<
+            Response,
+            DataWithResponseInit
+        >(async () => await auth.logoutAndRedirect(mockRequest("/", cookie)));
+
+        expect(response).toBe(null);
+        expect(error?.init?.status).toBe(HTTP_INTERNAL_SERVER_ERROR);
+        expect(error?.data).toBe("nope");
+
+        removeSpy.mockRestore();
     });
 });

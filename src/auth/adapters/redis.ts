@@ -10,19 +10,28 @@ import { tryCatch, TryCatchResult } from "~/utils";
 export interface RedisLoggingConfig {
     enabled: boolean;
     level: "error" | "warn" | "info" | "debug";
+    logConnectionEvents?: boolean;
+    logTiming?: boolean;
     logger?: (
         level: string,
         message: string,
         data?: Record<string, unknown>
     ) => void;
-    logConnectionEvents?: boolean;
-    logTiming?: boolean;
 }
 
+/**
+ * Configuration options for Redis storage adapter
+ * Extends Redis client options with additional configuration specific to the storage adapter
+ */
 interface RedisStorageAdapterOptions extends RedisOptions {
+    /** Redis logging configuration options */
     logging?: RedisLoggingConfig;
+    /** Optional pre-configured Redis client instance to use */
     redisClient?: Redis;
-    // todo: explain that will be priority over cookis maxAgae and it will be used as default if exipiration not yet seted set
+    /**
+     * Time-to-live in seconds for session data
+     * Takes precedence over cookie maxAge and is used as default when expiration is not set
+     */
     ttl?: number;
 }
 
@@ -44,6 +53,8 @@ export class RedisStorageAdapter<User extends UserIdentifier>
     /**
      * Default TTL for user sessions in seconds (10 minutes)
      */
+
+    // oxlint-disable-next-line no-unused-private-class-members (false positive error 'defaultTTL' is defined but never used)
     readonly #defaultTTL: number;
 
     /**
@@ -178,8 +189,8 @@ export class RedisStorageAdapter<User extends UserIdentifier>
 
                 this.#log("info", "remove operation completed", {
                     collection: this.#collectionName,
-                    userId: String(sessionId),
                     deleted: result === 1,
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
@@ -192,9 +203,9 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     : undefined;
                 this.#log("error", "remove operation failed", {
                     collection: this.#collectionName,
-                    userId: String(sessionId),
                     error:
                         error instanceof Error ? error.message : String(error),
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
@@ -234,18 +245,18 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     : undefined;
                 this.#log("info", "get operation completed", {
                     collection: this.#collectionName,
-                    userId: String(sessionId),
                     found: sessionData !== null,
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
                 });
 
                 return {
-                    user: sessionData.user,
                     expires: sessionData?.expires
                         ? new Date(sessionData?.expires)
                         : undefined,
+                    user: sessionData.user,
                 };
             } catch (error) {
                 const duration = this.#loggingConfig.logTiming
@@ -253,9 +264,9 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     : undefined;
                 this.#log("error", "get operation failed", {
                     collection: this.#collectionName,
-                    userId: String(sessionId),
                     error:
                         error instanceof Error ? error.message : String(error),
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
@@ -289,8 +300,8 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     : undefined;
                 this.#log("info", "has operation completed", {
                     collection: this.#collectionName,
-                    userId: String(sessionId),
                     exists,
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
@@ -302,9 +313,9 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     : undefined;
                 this.#log("error", "has operation failed", {
                     collection: this.#collectionName,
-                    userId: String(sessionId),
                     error:
                         error instanceof Error ? error.message : String(error),
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
@@ -332,17 +343,20 @@ export class RedisStorageAdapter<User extends UserIdentifier>
             collection: this.#collectionName,
             userId: String(sessionId),
         });
+        // console.log("[]", this.#defaultTTL);
 
         const [error, sessionData] = await tryCatch<SessionData<User>>(
             async () => {
                 const serializedSessionData = JSON.stringify({
-                    user: data,
                     expires,
+                    user: data,
                 });
 
                 const ttl = expires
                     ? Math.floor(expires.getTime() / 1000)
                     : this.#defaultTTL;
+
+                // const ttl = this.#defaultTTL;
 
                 const result = await this.#redisClient.setex(
                     this.generateSessionDataIdentifier(sessionId),
@@ -356,14 +370,14 @@ export class RedisStorageAdapter<User extends UserIdentifier>
 
                 this.#log("info", "set operation completed", {
                     collection: this.#collectionName,
-                    userId: String(sessionId),
                     dataSet: result === "OK",
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
                 });
 
-                return { user: data, expires };
+                return { expires, user: data };
             }
         );
 
@@ -373,8 +387,8 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                 : undefined;
             this.#log("error", "set operation failed", {
                 collection: this.#collectionName,
-                userId: String(sessionId),
                 error: String(error),
+                userId: String(sessionId),
                 ...(duration !== undefined && {
                     duration: `${duration}ms`,
                 }),

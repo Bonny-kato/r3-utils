@@ -2,7 +2,7 @@
     "categories": {
         "correctness": "error"
     },
-    "plugins": ["react", "promise", "node", "vitest", "jsdoc"],
+    "plugins": ["react", "promise", "node", "vitest", "typescript"],
     "rules": {
         "sort-vars": "error",
         "sort-keys": "error"

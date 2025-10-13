@@ -7,7 +7,7 @@ import {
     mockRedisAdapter,
     mockRequest,
     TestUser,
-} from "~/auth/__tests__/auth-test-utils";
+} from "~/auth/auth-test-utils";
 import { HTTP_FOUND } from "~/http-client";
 import { tryCatch } from "~/utils";
 
@@ -76,7 +76,7 @@ describe("Auth: Redirect Behavior", () => {
         expect(getLocation(redirectError)).toBe("/login?redirectTo=%2Fprivate");
     });
 
-    it("should redirect to login page when unauthenticated ", async () => {
+    it("should redirect to login page when unauthenticated", async () => {
         const auth = createMockAuth();
 
         const [redirectError, _user] = await tryCatch<TestUser, Response>(

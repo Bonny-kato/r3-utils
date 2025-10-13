@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Auth } from "~/auth";
-import { authUserTestData } from "~/auth/__tests__/auth-test-data";
 import {
+    authUserTestData,
     createMockAuth,
     getLocation,
     getSessionCookie,
     mockRequest,
     TestUser,
-} from "~/auth/__tests__/auth-test-utils";
+} from "~/auth/auth-test-utils";
 import { HTTP_FOUND } from "~/http-client/status-code";
 import { tryCatch } from "~/utils";
 

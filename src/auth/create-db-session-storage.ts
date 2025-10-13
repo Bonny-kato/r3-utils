@@ -9,11 +9,7 @@ import {
     AuthStorageAdapter,
     UserIdentifier,
 } from "~/auth/adapters/auth-storage-adapter";
-import {
-    AuthOptions,
-    CookieStorageOptions,
-    DbSessionStorageOptions,
-} from "~/auth/types";
+import { AuthOptions, CookieStorageOptions } from "~/auth/types";
 import { HTTP_FOUND, HTTP_INTERNAL_SERVER_ERROR } from "~/http-client";
 import { throwError } from "~/utils";
 
@@ -25,7 +21,16 @@ const generateSessionId = (): string => {
     );
 };
 
+/**
+ * Error thrown by database-backed session storage when reading/writing fails
+ * or when a session is invalidated (e.g., due to single-session enforcement).
+ *
+ * The `status` is set to an HTTP-like code to guide the caller:
+ * - 500: storage layer failed (retry or investigate)
+ * - 302: session invalid/terminated; callers typically redirect to login
+ */
 export class DbSessionStorageError extends Error {
+    /** HTTP-like status describing the error category. */
     readonly status: number;
 
     constructor(message: string, status: number) {
@@ -39,10 +44,22 @@ export class DbSessionStorageError extends Error {
     }
 }
 
+/**
+ * Create a database-backed `SessionStorage` compatible with `react-router`.
+ *
+ * Persists session entries with the provided `AuthStorageAdapter`. Supports optional
+ * single-session enforcement via `options.enableSingleSession`.
+ *
+ * @typeParam User - Your user shape, must include an `id`.
+ * @param storageAdapter - Implementation that reads/writes session records.
+ * @param cookie - Cookie configuration used by the session storage.
+ * @param enableSingleSession
+ * @returns A `SessionStorage<User, User>` instance used internally by `Auth`.
+ */
 export const createDbSessionStorage = <User extends UserIdentifier>(
     storageAdapter: AuthStorageAdapter<User>,
     cookie: CookieStorageOptions,
-    options: DbSessionStorageOptions
+    enableSingleSession?: boolean
 ) => {
     return createSessionStorage<User>({
         cookie: cookie,
@@ -52,7 +69,7 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
             }
 
             const user = data as never as User;
-            if (options?.enableSingleSession) {
+            if (enableSingleSession) {
                 // 1️⃣ Check if a user has an existing active session
                 const [getUserSessionError, existingSessionId] =
                     await storageAdapter.getUserActiveSession(user.id);
@@ -88,7 +105,7 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
                 });
             }
 
-            if (options.enableSingleSession) {
+            if (enableSingleSession) {
                 // 5️⃣ Link this session to the user
                 const [setUserSessionError] =
                     await storageAdapter.setUserSession(user.id, sessionId);
@@ -142,7 +159,7 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
                 return null;
             }
 
-            if (options.enableSingleSession) {
+            if (enableSingleSession) {
                 /* 3️⃣ Verify this session is still the active one for this user
                If the active session doesn't match, the user was logged in elsewhere
                throw error to invalidate the session */
@@ -196,6 +213,18 @@ const defaultCookieOptions: CookieSerializeOptions = {
     secure: process.env.NODE_ENV === "production",
 };
 
+/**
+ * Factory that returns the appropriate `SessionStorage` implementation based on `AuthOptions`.
+ *
+ * - `in-memory` → `createMemorySessionStorage`
+ * - `in-cookie-only` (or omitted) → `createCookieSessionStorage`
+ * - `in-custom-db` → `createDbSessionStorage` (requires `storageAdapter`)
+ *
+ * Validates required cookie configuration (`name`, `secrets`).
+ *
+ * @type User - Your user shape, must include an `id`.
+ * @param options - Auth configuration with storage strategy and cookie options.
+ */
 export const createAuthStorage = <User extends UserIdentifier>(
     options: AuthOptions<User>
 ) => {
@@ -241,9 +270,11 @@ export const createAuthStorage = <User extends UserIdentifier>(
                 status: HTTP_INTERNAL_SERVER_ERROR,
             });
         }
-        return createDbSessionStorage(options.storageAdapter, cookie, {
-            enableSingleSession: options.enableSingleSession,
-        });
+        return createDbSessionStorage(
+            options.storageAdapter,
+            cookie,
+            options.enableSingleSession
+        );
     }
 
     return throwError({

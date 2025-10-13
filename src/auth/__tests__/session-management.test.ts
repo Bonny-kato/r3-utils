@@ -6,7 +6,7 @@ import {
     mockRedisAdapter,
     mockRequest,
     TestUser,
-} from "~/auth/__tests__/auth-test-utils";
+} from "~/auth/auth-test-utils";
 import { HTTP_FOUND } from "~/http-client/status-code";
 import { tryCatch } from "~/utils";
 
@@ -24,12 +24,12 @@ describe("Auth: Session Management", () => {
     it("should redirect user to login page when session expires", async () => {
         const auth = new Auth<TestUser>({
             cookie: {
+                maxAge: 1,
                 name: "__test_session",
                 secrets: ["my-secret"],
-                maxAge: 1,
             },
-            storageAdapter: mockRedisAdapter,
             sessionStorageType: "in-custom-db",
+            storageAdapter: mockRedisAdapter,
         });
 
         const res = await auth.loginAndRedirect({ id: "ttl-1" }, "/ttl");

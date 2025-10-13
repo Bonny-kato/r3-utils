@@ -1,7 +1,7 @@
 import { data } from "react-router";
 import { describe, expect, it } from "vitest";
 import { Auth } from "~/auth";
-import { mockRedisAdapter, TestUser } from "~/auth/__tests__/auth-test-utils";
+import { mockRedisAdapter, TestUser } from "~/auth/auth-test-utils";
 import { HTTP_INTERNAL_SERVER_ERROR } from "~/http-client";
 import { tryCatch } from "~/utils/try-catch";
 

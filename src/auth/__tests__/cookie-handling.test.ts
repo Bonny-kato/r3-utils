@@ -5,7 +5,7 @@ import {
     getSessionCookie,
     mockRequest,
     TestUser,
-} from "~/auth/__tests__/auth-test-utils";
+} from "~/auth/auth-test-utils";
 import { tryCatch } from "~/utils";
 
 describe("Auth: Cookie Handling", () => {

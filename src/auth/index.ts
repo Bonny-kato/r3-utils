@@ -1,4 +1,4 @@
-export { MemoryStorageAdapter, RedisStorageAdapter } from "./adapters";
+export { RedisStorageAdapter } from "./adapters";
 export type {
     AuthStorageAdapter,
     UserId,
