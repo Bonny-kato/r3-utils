@@ -4,30 +4,55 @@
   "description": "A library of reusable hooks, utilities, and components for React Router v7",
   "type": "module",
   "exports": {
-    "./access-control": "./dist/access-control/index.js",
-    "./cache": "./dist/cache/index.js",
-    "./hooks": "./dist/hooks/index.js",
+    "./access-control": {
+      "types": "./dist/access-control/index.d.ts",
+      "import": "./dist/access-control/index.js"
+    },
+    "./cache": {
+      "types": "./dist/cache/index.d.ts",
+      "import": "./dist/cache/index.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.js"
+    },
+    "./http-client": {
+      "types": "./dist/http-client/index.d.ts",
+      "import": "./dist/http-client/index.js"
+    },
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "import": "./dist/auth/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
+    },
+    "./zod-common": {
+      "types": "./dist/zod-common/index.d.ts",
+      "import": "./dist/zod-common/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
+  "sideEffects": false,
   "scripts": {
     "dev": "tsdown --watch",
     "build": "tsdown",
     "lint": "oxlint",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test": "vitest --typecheck",
-    "release": "standard-version",
     "prepare": "husky",
     "typecheck": "tsc",
     "lint-staged": "npx lint-staged",
     "prepublishOnly": "pnpm run build",
-    "release:patch": "npm version patch && npm publish --access public && git push --follow-tags",
-    "release:minor": "npm version minor && npm publish --access public && git push --follow-tags",
-    "release:major": "npm version major && npm publish --access public && git push --follow-tags",
-    "release:alpha": "npm version prepatch --preid alpha  && npm publish --access public --tag alpha && git push --follow-tags",
-    "release:beta": "npm version prepatch --preid beta && npm publish --access public --tag beta && git push --follow-tags"
+    "release:patch": "npm version patch && npm publish && git push --follow-tags",
+    "release:minor": "npm version minor && npm publish && git push --follow-tags",
+    "release:major": "npm version major && npm publish && git push --follow-tags",
+    "release:alpha": "npm version prepatch --preid alpha  && npm publish  --tag alpha && git push --follow-tags",
+    "release:beta:next": "npm version prerelease --preid beta && npm publish --tag beta && git push --follow-tags"
   },
   "keywords": [
     "react",
@@ -37,7 +62,10 @@
     "components",
     "typescript"
   ],
-  "author": "Bonny Kato",
+  "author": {
+    "name": "Bonny Kato",
+    "email": "6onnykato@gmail.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Bonny-kato/r3-utils.git"
@@ -50,7 +78,7 @@
   "packageManager": "pnpm@10.14.0",
   "peerDependencies": {
     "ioredis": "^5.6.0",
-    "react": "^19.0.0",
+    "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^19.0.0",
     "react-router": "^7.3.0"
   },
@@ -79,11 +107,8 @@
     "prettier-plugin-organize-imports": "^4.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-hook-form": "^7.54.2",
-    "react-router": "^7.9.1",
+    "react-router": "^7.3.0",
     "rimraf": "^6.0.1",
-    "standard-version": "^9.5.0",
-    "tsc-alias": "^1.8.11",
     "tsdown": "^0.15.6",
     "typescript": "^5.8.2",
     "vite-tsconfig-paths": "^5.1.4",
@@ -95,9 +120,16 @@
       "prettier --write"
     ]
   },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@bonny-kato/localstorage": "^0.0.2",
-    "@bonnykato/simple-db": "^1.0.10",
     "axios": "^1.8.3",
     "dayjs": "^1.11.13",
     "react-hook-form": "^7.54.2",

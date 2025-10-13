@@ -1,15 +1,14 @@
 import { defineConfig, UserConfig } from "tsdown";
 
 const sharableConfig: UserConfig = {
-    minify: true,
-    unbundle: true,
-    exports: true,
-    sourcemap: true,
-    external: ["node:process"],
+    alias: { "~/*": "./src/*" },
     dts: {
         sourcemap: true,
     },
-    alias: { "~/*": "./src/*" },
+    external: ["node:process"],
+    minify: true,
+    sourcemap: true,
+    unbundle: true,
 };
 
 export default defineConfig([

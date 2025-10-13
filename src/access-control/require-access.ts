@@ -1,4 +1,4 @@
-import { HTTP_FORBIDDEN } from "../constants";
+import { HTTP_FORBIDDEN } from "~/http-client";
 import { throwCustomError } from "../utils";
 import { checkIfAuthorized } from "./access-control-helpers";
 import { generateUserAccessControlConfig } from "./generate-user-access-control-config";
