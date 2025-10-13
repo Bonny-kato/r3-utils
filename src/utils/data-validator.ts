@@ -1,7 +1,7 @@
 import { ZodError, ZodSchema } from "zod";
+import { HTTP_NOT_ACCEPTABLE } from "~/http-client";
 import { checkIsDevMode } from "./check-is-dev-mode";
 import { throwError } from "./error-utils";
-import { HTTP_NOT_ACCEPTABLE } from "~/http-client";
 
 type FormDataError<T> = Partial<Record<keyof T, string>>;
 type ValidateData<T> = {
