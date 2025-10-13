@@ -15,11 +15,11 @@ import { RawCreateParams, Schema, z, ZodSchema, ZodString } from "zod";
  */
 export const PaginationSchema = z.object(
     {
-        totalPages: z.number({
-            message: "totalPages must be a number",
-        }),
         currentPage: z.number({
             message: "currentPage must be a number",
+        }),
+        totalPages: z.number({
+            message: "totalPages must be a number",
         }),
     },
     { message: "pagination object is required" }
@@ -134,13 +134,13 @@ export const ContainOnlyAlphabetic = (label: string): ZodSchema => {
  */
 export const SelectOptionSchema = z.object({
     label: z.string().min(1, { message: "label type must be a number" }),
-    value: z.coerce
-        .number({ message: "value must be a number" })
-        .or(z.coerce.string({ message: "value must be a string" })),
     selected: z
         .boolean({ message: "selected must be a boolean" })
         .optional()
         .default(false),
+    value: z.coerce
+        .number({ message: "value must be a number" })
+        .or(z.coerce.string({ message: "value must be a string" })),
 });
 
 export type SelectInputOptionType = z.infer<typeof SelectOptionSchema>;

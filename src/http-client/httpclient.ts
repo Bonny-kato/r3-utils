@@ -16,7 +16,7 @@ type OnRequestFulfilled<TBody = unknown> = (
     | InternalAxiosRequestConfig<TBody>
     | Promise<InternalAxiosRequestConfig<TBody>>;
 
-type OnRequestRejected = (error: unknown) => unknown;
+type OnRequestRejected = (error: unknown) => never;
 
 export interface ExtendedAxiosInstance extends Omit<AxiosInstance, "defaults"> {
     defaults: AxiosInstance["defaults"] & {
@@ -109,7 +109,7 @@ export class HttpClient {
         fulfilled: (
             response: AxiosResponse
         ) => AxiosResponse | Promise<AxiosResponse>,
-        rejected?: (error: unknown) => unknown
+        rejected?: (error: unknown) => never
     ): () => void {
         const id = this.#axios.interceptors.response.use(fulfilled, rejected);
         return () => this.#axios.interceptors.response.eject(id);
@@ -131,8 +131,8 @@ export class HttpClient {
         return this.#request<TResponse, TBody, TError>({
             data: body,
             endpoint,
-            method: "POST",
             ...config,
+            method: "POST",
         });
     };
 

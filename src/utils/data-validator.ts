@@ -1,5 +1,5 @@
 import { ZodError, ZodSchema } from "zod";
-import { HTTP_NOT_ACCEPTABLE } from "../constants";
+import { HTTP_NOT_ACCEPTABLE } from "~/http-client";
 import { checkIsDevMode } from "./check-is-dev-mode";
 import { throwError } from "./error-utils";
 

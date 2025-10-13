@@ -1,31 +1,39 @@
 import Redis, { type RedisOptions } from "ioredis";
 
-import type {
+import {
     AuthStorageAdapter,
-    UserId,
+    SessionData,
     UserIdentifier,
-} from "~/auth/auth-storage-adapter";
-import { tryCatch } from "~/utils";
+} from "~/auth/adapters/auth-storage-adapter";
+import { tryCatch, TryCatchResult } from "~/utils";
 
 export interface RedisLoggingConfig {
     enabled: boolean;
     level: "error" | "warn" | "info" | "debug";
+    logConnectionEvents?: boolean;
+    logTiming?: boolean;
     logger?: (
         level: string,
         message: string,
         data?: Record<string, unknown>
     ) => void;
-    logConnectionEvents?: boolean;
-    logTiming?: boolean;
 }
 
+/**
+ * Configuration options for Redis storage adapter
+ * Extends Redis client options with additional configuration specific to the storage adapter
+ */
 interface RedisStorageAdapterOptions extends RedisOptions {
+    /** Redis logging configuration options */
     logging?: RedisLoggingConfig;
+    /** Optional pre-configured Redis client instance to use */
     redisClient?: Redis;
-    ttl?: Seconds;
+    /**
+     * Time-to-live in seconds for session data
+     * Takes precedence over cookie maxAge and is used as default when expiration is not set
+     */
+    ttl?: number;
 }
-
-type Seconds = number;
 
 const DEFAULT_TTL = 600; // 10 minutes
 
@@ -45,7 +53,9 @@ export class RedisStorageAdapter<User extends UserIdentifier>
     /**
      * Default TTL for user sessions in seconds (10 minutes)
      */
-    readonly #defaultTTL: Seconds;
+
+    // oxlint-disable-next-line no-unused-private-class-members (false positive error 'defaultTTL' is defined but never used)
+    readonly #defaultTTL: number;
 
     /**
      * The Redis client instance used for data storage operations.
@@ -56,12 +66,6 @@ export class RedisStorageAdapter<User extends UserIdentifier>
      * The collection name used as a namespace for Redis keys.
      */
     readonly #collectionName: string;
-
-    // TODO: Find another way to store auth user's ID instead of `redis set` since Redis has no mechanism to auto-delete set members with TTL settings
-    /**
-     * The Redis key used to store the set of all user IDs.
-     */
-    readonly #userSetKey: string;
 
     /**
      * Logging configuration for the adapter.
@@ -96,7 +100,6 @@ export class RedisStorageAdapter<User extends UserIdentifier>
             new Redis({
                 ...otherOptions,
             });
-        this.#userSetKey = `${this.#collectionName}:user_ids`;
 
         // Set up Redis connection event logging
         this.#setupConnectionLogging();
@@ -106,70 +109,55 @@ export class RedisStorageAdapter<User extends UserIdentifier>
         return this.#redisClient.status === "ready";
     }
 
-    /**
-     * Retrieves all users stored in the adapter.
-     *
-     * Uses Redis pipeline to efficiently fetch all user data in a single operation.
-     *
-     * @returns A promise that resolves to an array of all user data
-     */
-    async getAll() {
-        return tryCatch<User[]>(async () => {
-            const startTime = this.#loggingConfig.logTiming ? Date.now() : 0;
-            this.#log("debug", "Starting getAll operation", {
-                collection: this.#collectionName,
-            });
-            try {
-                const userIds = await this.#redisClient.smembers(
-                    this.#userSetKey
-                );
-                this.#log("debug", "Retrieved user IDs from set", {
-                    collection: this.#collectionName,
-                    userCount: userIds.length,
-                });
+    update(sessionId: string, data: Partial<User>, expires?: Date) {
+        return tryCatch(async () => {
+            const [error, sessionData] = await this.get(sessionId);
+            if (error) throw error;
+            if (!sessionData)
+                throw new Error(`User with session id ${sessionId} not found`);
 
-                const pipeline = this.#redisClient.pipeline();
-                userIds.forEach((userId) =>
-                    pipeline.get(this.#generateUserKey(userId))
-                );
+            const updatedUser = {
+                ...sessionData.user,
+                ...data,
+            };
 
-                const results = await pipeline.exec();
+            const [err, result] = await this.set(
+                sessionId,
+                updatedUser,
+                expires
+            );
+            if (err) throw err;
+            return result;
+        });
+    }
 
-                let users: User[] = [];
-                if (results) {
-                    users = results
-                        .filter(([err, data]) => !err && data != null)
-                        .map(([, data]) =>
-                            JSON.parse(data as string)
-                        ) as User[];
-                }
+    setUserSession(
+        userId: string,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            const result = await this.#redisClient.set(
+                `user_session:${userId}`,
+                sessionId
+            );
+            return result === "OK";
+        });
+    }
 
-                const duration = this.#loggingConfig.logTiming
-                    ? Date.now() - startTime
-                    : undefined;
-                this.#log("info", "getAll operation completed", {
-                    collection: this.#collectionName,
-                    userCount: users.length,
-                    ...(duration !== undefined && {
-                        duration: `${duration}ms`,
-                    }),
-                });
+    getUserActiveSession(
+        userId: string
+    ): Promise<TryCatchResult<string | null>> {
+        return tryCatch(async () => {
+            return this.#redisClient.get(`user_session:${userId}`);
+        });
+    }
 
-                return users as User[];
-            } catch (error) {
-                const duration = this.#loggingConfig.logTiming
-                    ? Date.now() - startTime
-                    : undefined;
-                this.#log("error", "getAll operation failed", {
-                    collection: this.#collectionName,
-                    error:
-                        error instanceof Error ? error.message : String(error),
-                    ...(duration !== undefined && {
-                        duration: `${duration}ms`,
-                    }),
-                });
-                throw error;
-            }
+    removeUserSession(userId: string): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            const result = await this.#redisClient.del(
+                `user_session:${userId}`
+            );
+            return result === 1; // one means okay;
         });
     }
 
@@ -179,39 +167,35 @@ export class RedisStorageAdapter<User extends UserIdentifier>
      * Uses Redis pipeline to atomically remove both the user data and
      * the user ID from the set of all user IDs.
      *
-     * @param userId - The ID of the user to remove
+     * @param sessionId - The ID of the user to remove
      * @returns A promise that resolves when the user has been removed
      */
-    async remove(userId: UserId) {
+    async remove(sessionId: string) {
+        console.log("[remove:]", sessionId);
+
         return tryCatch(async () => {
             const startTime = this.#loggingConfig.logTiming ? Date.now() : 0;
             this.#log("debug", "Starting remove operation", {
                 collection: this.#collectionName,
-                userId: String(userId),
+                userId: String(sessionId),
             });
             try {
-                const pipeline = this.#redisClient.pipeline();
-                const userKey = this.#generateUserKey(userId);
-
-                pipeline.del(userKey);
-                pipeline.srem(this.#userSetKey, String(userId));
-
-                const results = await pipeline.exec();
-                const deleteResult = results?.[0];
-                const sremResult = results?.[1];
+                const userKey = this.generateSessionDataIdentifier(sessionId);
+                const result = await this.#redisClient.del(userKey);
 
                 const duration = this.#loggingConfig.logTiming
                     ? Date.now() - startTime
                     : undefined;
+
                 this.#log("info", "remove operation completed", {
                     collection: this.#collectionName,
-                    userId: String(userId),
-                    deleted: deleteResult?.[1] === 1,
-                    removedFromSet: sremResult?.[1] === 1,
+                    deleted: result === 1,
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
                 });
+
                 return true;
             } catch (error) {
                 const duration = this.#loggingConfig.logTiming
@@ -219,9 +203,9 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     : undefined;
                 this.#log("error", "remove operation failed", {
                     collection: this.#collectionName,
-                    userId: String(userId),
                     error:
                         error instanceof Error ? error.message : String(error),
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
@@ -234,45 +218,55 @@ export class RedisStorageAdapter<User extends UserIdentifier>
     /**
      * Retrieves a user by their ID.
      *
-     * @param userId - The ID of the user to retrieve
+     * @param sessionId - The ID of the user to retrieve
      * @returns A promise that resolves to the user data if found, or undefined if not found
      */
-    async get(userId: UserId) {
+    async get(sessionId: string) {
         return tryCatch(async () => {
             const startTime = this.#loggingConfig.logTiming ? Date.now() : 0;
             this.#log("debug", "Starting get operation", {
                 collection: this.#collectionName,
-                userId: String(userId),
+                userId: String(sessionId),
             });
             try {
-                const storedUser = await this.#redisClient.get(
-                    this.#generateUserKey(userId)
+                const storedUserSession = await this.#redisClient.get(
+                    this.generateSessionDataIdentifier(sessionId)
                 );
-                let user: User | null = null;
-                if (storedUser) {
-                    user = JSON.parse(storedUser) as never as User;
-                }
+
+                if (!storedUserSession) return null;
+
+                const sessionData = JSON.parse(storedUserSession) as never as {
+                    user: User;
+                    expires: string;
+                };
+
                 const duration = this.#loggingConfig.logTiming
                     ? Date.now() - startTime
                     : undefined;
                 this.#log("info", "get operation completed", {
                     collection: this.#collectionName,
-                    userId: String(userId),
-                    found: user !== null,
+                    found: sessionData !== null,
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
                 });
-                return user;
+
+                return {
+                    expires: sessionData?.expires
+                        ? new Date(sessionData?.expires)
+                        : undefined,
+                    user: sessionData.user,
+                };
             } catch (error) {
                 const duration = this.#loggingConfig.logTiming
                     ? Date.now() - startTime
                     : undefined;
                 this.#log("error", "get operation failed", {
                     collection: this.#collectionName,
-                    userId: String(userId),
                     error:
                         error instanceof Error ? error.message : String(error),
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
@@ -285,20 +279,20 @@ export class RedisStorageAdapter<User extends UserIdentifier>
     /**
      * Checks if a user with the specified ID exists.
      *
-     * @param userId - The ID of the user to check
+     * @param sessionId - The ID of the user to check
      * @returns A promise that resolves to true if the user exists, false otherwise
      */
-    async has(userId: UserId) {
+    async has(sessionId: string) {
         return tryCatch(async () => {
             const startTime = this.#loggingConfig.logTiming ? Date.now() : 0;
             this.#log("debug", "Starting has operation", {
                 collection: this.#collectionName,
-                userId: String(userId),
+                userId: String(sessionId),
             });
             try {
                 const exists = Boolean(
                     await this.#redisClient.exists(
-                        this.#generateUserKey(userId)
+                        this.generateSessionDataIdentifier(sessionId)
                     )
                 );
                 const duration = this.#loggingConfig.logTiming
@@ -306,8 +300,8 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     : undefined;
                 this.#log("info", "has operation completed", {
                     collection: this.#collectionName,
-                    userId: String(userId),
                     exists,
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
@@ -319,9 +313,9 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     : undefined;
                 this.#log("error", "has operation failed", {
                     collection: this.#collectionName,
-                    userId: String(userId),
                     error:
                         error instanceof Error ? error.message : String(error),
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
@@ -337,165 +331,75 @@ export class RedisStorageAdapter<User extends UserIdentifier>
      * Uses Redis pipeline to atomically set the user data and
      * add the user ID to the set of all user IDs.
      *
-     * @param userId - The ID of the user to create or update
+     * @param sessionId - The ID of the user to create or update
      * @param data - The user data to store
+     * @param expires
      * @returns A promise that resolves when the user has been created or updated
      */
-    async set(userId: UserId, data: User) {
-        return tryCatch<User>(async () => {
-            const startTime = this.#loggingConfig.logTiming ? Date.now() : 0;
-            this.#log("debug", "Starting set operation", {
-                collection: this.#collectionName,
-                userId: String(userId),
-            });
-            try {
-                const pipeline = this.#redisClient.pipeline();
 
-                pipeline.setex(
-                    this.#generateUserKey(userId),
-                    this.#defaultTTL,
-                    JSON.stringify(data)
+    async set(sessionId: string, data: User, expires?: Date) {
+        const startTime = this.#loggingConfig.logTiming ? Date.now() : 0;
+        this.#log("debug", "Starting set operation", {
+            collection: this.#collectionName,
+            userId: String(sessionId),
+        });
+        // console.log("[]", this.#defaultTTL);
+
+        const [error, sessionData] = await tryCatch<SessionData<User>>(
+            async () => {
+                const serializedSessionData = JSON.stringify({
+                    expires,
+                    user: data,
+                });
+
+                const ttl = expires
+                    ? Math.floor(expires.getTime() / 1000)
+                    : this.#defaultTTL;
+
+                // const ttl = this.#defaultTTL;
+
+                const result = await this.#redisClient.setex(
+                    this.generateSessionDataIdentifier(sessionId),
+                    ttl,
+                    serializedSessionData
                 );
-                pipeline.sadd(this.#userSetKey, String(userId));
-
-                const results = await pipeline.exec();
-                const setResult = results?.[0];
-                const saddResult = results?.[1];
 
                 const duration = this.#loggingConfig.logTiming
                     ? Date.now() - startTime
                     : undefined;
+
                 this.#log("info", "set operation completed", {
                     collection: this.#collectionName,
-                    userId: String(userId),
-                    dataSet: setResult?.[1] === "OK",
-                    addedToSet: saddResult?.[1] === 1,
+                    dataSet: result === "OK",
+                    userId: String(sessionId),
                     ...(duration !== undefined && {
                         duration: `${duration}ms`,
                     }),
                 });
 
-                return data;
-            } catch (error) {
-                const duration = this.#loggingConfig.logTiming
-                    ? Date.now() - startTime
-                    : undefined;
-                this.#log("error", "set operation failed", {
-                    collection: this.#collectionName,
-                    userId: String(userId),
-                    error:
-                        error instanceof Error ? error.message : String(error),
-                    ...(duration !== undefined && {
-                        duration: `${duration}ms`,
-                    }),
-                });
-                throw error;
+                return { expires, user: data };
             }
-        });
+        );
+
+        if (error) {
+            const duration = this.#loggingConfig.logTiming
+                ? Date.now() - startTime
+                : undefined;
+            this.#log("error", "set operation failed", {
+                collection: this.#collectionName,
+                error: String(error),
+                userId: String(sessionId),
+                ...(duration !== undefined && {
+                    duration: `${duration}ms`,
+                }),
+            });
+        }
+
+        return [error, sessionData] as TryCatchResult<SessionData<User>>;
     }
 
-    /**
-     * Refreshes a user's session TTL without retrieving data.
-     * Useful for keeping sessions alive during user activity.
-     *
-     * @param userId - The ID of the user whose session to refresh
-     * @returns A promise that resolves to true if session was refreshed, false if user doesn't exist
-     */
-    async resetExpiration(userId: UserId) {
-        return tryCatch(async () => {
-            const startTime = this.#loggingConfig.logTiming ? Date.now() : 0;
-            this.#log("debug", "Starting resetExpiration operation", {
-                collection: this.#collectionName,
-                userId: String(userId),
-            });
-            try {
-                const result = await this.#redisClient.expire(
-                    this.#generateUserKey(userId),
-                    this.#defaultTTL
-                );
-                const refreshed = result === 1;
-                const duration = this.#loggingConfig.logTiming
-                    ? Date.now() - startTime
-                    : undefined;
-                this.#log("info", "resetExpiration operation completed", {
-                    collection: this.#collectionName,
-                    userId: String(userId),
-                    refreshed,
-                    ...(duration !== undefined && {
-                        duration: `${duration}ms`,
-                    }),
-                });
-                return refreshed;
-            } catch (error) {
-                const duration = this.#loggingConfig.logTiming
-                    ? Date.now() - startTime
-                    : undefined;
-                this.#log("error", "resetExpiration operation failed", {
-                    collection: this.#collectionName,
-                    userId: String(userId),
-                    error:
-                        error instanceof Error ? error.message : String(error),
-                    ...(duration !== undefined && {
-                        duration: `${duration}ms`,
-                    }),
-                });
-                throw error;
-            }
-        });
-    }
-
-    /**
-     * Clears all users tracked by this adapter.
-     *
-     * Uses the user ID set to delete each user's key and then removes the set itself.
-     *
-     * @returns A promise that resolves to true when complete
-     */
-    async clear() {
-        return tryCatch(async () => {
-            const startTime = this.#loggingConfig.logTiming ? Date.now() : 0;
-            this.#log("debug", "Starting clear operation", {
-                collection: this.#collectionName,
-            });
-            try {
-                const userIds = await this.#redisClient.smembers(
-                    this.#userSetKey
-                );
-
-                const pipeline = this.#redisClient.pipeline();
-                for (const userId of userIds) {
-                    pipeline.del(this.#generateUserKey(userId));
-                }
-                // Also remove the set that tracks all user IDs
-                pipeline.del(this.#userSetKey);
-
-                await pipeline.exec();
-                const duration = this.#loggingConfig.logTiming
-                    ? Date.now() - startTime
-                    : undefined;
-                this.#log("info", "clear operation completed", {
-                    collection: this.#collectionName,
-                    userCount: userIds.length,
-                    ...(duration !== undefined && {
-                        duration: `${duration}ms`,
-                    }),
-                });
-                return true;
-            } catch (error) {
-                const duration = this.#loggingConfig.logTiming
-                    ? Date.now() - startTime
-                    : undefined;
-                this.#log("error", "clear operation failed", {
-                    collection: this.#collectionName,
-                    error:
-                        error instanceof Error ? error.message : String(error),
-                    ...(duration !== undefined && {
-                        duration: `${duration}ms`,
-                    }),
-                });
-                throw error;
-            }
-        });
+    generateSessionDataIdentifier(sessionId: string) {
+        return `${this.#collectionName}:${sessionId}`;
     }
 
     /**
@@ -598,9 +502,5 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                 collection: this.#collectionName,
             });
         });
-    }
-
-    #generateUserKey(userId: UserId) {
-        return `${this.#collectionName}:${userId}`;
     }
 }

@@ -6,32 +6,60 @@ export type TryCatchResult<TResult, TError = Error> =
     | TryCatchError<TError>;
 
 /**
- * A utility function that wraps async operations to handle errors in a type-safe way.
- * It returns a tuple with either [error, null] or [null, data] to enable proper type narrowing.
+ * A utility function that wraps both sync and async operations to handle errors in a type-safe way.
+ * It returns either a tuple [error, null] | [null, data] or a Promise resolving to that tuple
+ * depending on whether the input is synchronous or asynchronous.
  *
- * @template T - The type of successful data returned by the input
- * @template E - The type of error (defaults to Error)
- * @param input - The input to be executed
- * @returns A input resolving to a tuple of [error, null] or [null, data]
- *
- * @example
- * // Basic usage
- * const [error, data] = await tryCatch(fetchData());
- * if (error) {
- *   // TypeScript knows error is E (not null) here
- *   console.error(error.message);
- *   return;
- * }
- * // TypeScript knows data is T (not null) here
- * console.log(data.someProperty);
+ * @template TResult - The type of successful data returned by the input
+ * @template TError - The type of error (defaults to Error)
  */
-export const tryCatch = async <TResult, TError = Error>(
-    input: Promise<TResult> | (() => Promise<TResult>)
-): Promise<TryCatchResult<TResult, TError>> => {
+export function tryCatch<TResult, TError = Error>(
+    input: () => Promise<TResult>
+): Promise<TryCatchResult<TResult, TError>>;
+
+export function tryCatch<TResult, TError = Error>(
+    input: Promise<TResult>
+): Promise<TryCatchResult<TResult, TError>>;
+
+export function tryCatch<TResult, TError = Error>(
+    input: () => TResult
+): TryCatchResult<TResult, TError>;
+
+export function tryCatch<TResult, TError = Error>(
+    input: TResult
+): TryCatchResult<TResult, TError>;
+
+export function tryCatch<TResult, TError = Error>(
+    input:
+        | Promise<TResult>
+        | (() => Promise<TResult>)
+        | (() => TResult)
+        | TResult
+): TryCatchResult<TResult, TError> | Promise<TryCatchResult<TResult, TError>> {
+    const isPromise =
+        input instanceof Promise ||
+        (typeof input === "function" &&
+            input.constructor.name === "AsyncFunction");
+
+    if (isPromise) {
+        return (async () => {
+            try {
+                const result =
+                    typeof input === "function"
+                        ? await (input as () => Promise<TResult>)()
+                        : await input;
+                return [null, result] as [null, TResult];
+            } catch (error) {
+                return [error as TError, null] as [TError, null];
+            }
+        })();
+    }
+
     try {
-        const data = await (typeof input === "function" ? input() : input);
-        return [null, data] as [null, TResult];
+        const result =
+            typeof input === "function" ? (input as () => TResult)() : input;
+        return [null, result] as [null, TResult];
     } catch (error) {
         return [error as TError, null] as [TError, null];
     }
-};
+}

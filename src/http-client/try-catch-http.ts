@@ -3,8 +3,8 @@ import {
     HTTP_INTERNAL_SERVER_ERROR,
     HTTP_SERVICE_NOT_AVAILABLE,
     NETWORK_ERROR_CODE,
-} from "../constants";
-import { checkIsDevMode, tryCatch } from "../utils";
+} from "~/http-client/status-code";
+import { checkIsDevMode, tryCatch } from "~/utils";
 
 /**
  * Standard error type used throughout the application.

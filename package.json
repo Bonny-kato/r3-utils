@@ -3,61 +3,56 @@
   "version": "2.3.4",
   "description": "A library of reusable hooks, utilities, and components for React Router v7",
   "type": "module",
-  "main": "dist/r3-utils.js",
-  "types": "dist/index.d.ts",
   "exports": {
-    "./auth": {
-      "import": "./dist/auth/index.js",
-      "types": "./dist/auth/index.d.ts"
+    "./access-control": {
+      "types": "./dist/access-control/index.d.ts",
+      "import": "./dist/access-control/index.js"
     },
     "./cache": {
-      "import": "./dist/cache/index.js",
-      "types": "./dist/cache/index.d.ts"
-    },
-    "./access-control": {
-      "import": "./dist/access-control/index.js",
-      "types": "./dist/access-control/index.d.ts"
+      "types": "./dist/cache/index.d.ts",
+      "import": "./dist/cache/index.js"
     },
     "./hooks": {
-      "import": "./dist/hooks/index.js",
-      "types": "./dist/hooks/index.d.ts"
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.js"
     },
     "./http-client": {
-      "import": "./dist/http-client/index.js",
-      "types": "./dist/http-client/index.d.ts"
+      "types": "./dist/http-client/index.d.ts",
+      "import": "./dist/http-client/index.js"
+    },
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "import": "./dist/auth/index.js"
     },
     "./utils": {
-      "import": "./dist/utils/index.js",
-      "types": "./dist/utils/index.d.ts"
-    },
-    "./constants": {
-      "import": "./dist/constants/index.js",
-      "types": "./dist/constants/constants.d.ts"
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
     },
     "./zod-common": {
-      "import": "./dist/zod-common/index.js",
-      "types": "./dist/zod-common/index.d.ts"
-    }
+      "types": "./dist/zod-common/index.d.ts",
+      "import": "./dist/zod-common/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
+  "sideEffects": false,
   "scripts": {
-    "dev": "vite",
-    "build": "rimraf dist && vite build && tsc -p tsconfig.dts.json --listEmittedFiles",
-    "lint": "eslint --config eslint.config.ts . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "dev": "tsdown --watch",
+    "build": "tsdown",
+    "lint": "oxlint",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test": "vitest --typecheck",
-    "release": "standard-version",
     "prepare": "husky",
     "typecheck": "tsc",
     "lint-staged": "npx lint-staged",
     "prepublishOnly": "pnpm run build",
-    "release:patch": "npm version patch && npm publish --access public && git push --follow-tags",
-    "release:minor": "npm version minor && npm publish --access public && git push --follow-tags",
-    "release:major": "npm version major && npm publish --access public && git push --follow-tags",
-    "release:alpha": "npm version prepatch --preid alpha  && npm publish --access public --tag alpha && git push --follow-tags",
-    "release:beta": "npm version prepatch --preid beta && npm publish --access public --tag beta && git push --follow-tags"
+    "release:patch": "npm version patch && npm publish && git push --follow-tags",
+    "release:minor": "npm version minor && npm publish && git push --follow-tags",
+    "release:major": "npm version major && npm publish && git push --follow-tags",
+    "release:alpha": "npm version prepatch --preid alpha  && npm publish  --tag alpha && git push --follow-tags",
+    "release:beta:next": "npm version prerelease --preid beta && npm publish --tag beta && git push --follow-tags"
   },
   "keywords": [
     "react",
@@ -67,7 +62,10 @@
     "components",
     "typescript"
   ],
-  "author": "Bonny Kato",
+  "author": {
+    "name": "Bonny Kato",
+    "email": "6onnykato@gmail.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Bonny-kato/r3-utils.git"
@@ -79,69 +77,66 @@
   "license": "MIT",
   "packageManager": "pnpm@10.14.0",
   "peerDependencies": {
-    "@bonny-kato/localstorage": "^0.0.2",
-    "@bonnykato/simple-db": "^1.0.10",
-    "axios": "^1.8.3",
-    "dayjs": "^1.11.13",
     "ioredis": "^5.6.0",
-    "react": "^19.0.0",
+    "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^19.0.0",
-    "react-hook-form": "^7.54.2",
-    "react-router": "^7.3.0",
-    "zod": "^3.24.2"
+    "react-router": "^7.3.0"
   },
   "publishConfig": {
     "access": "public"
   },
   "devDependencies": {
-    "@bonny-kato/localstorage": "^0.0.2",
-    "@bonnykato/simple-db": "^1.0.10",
     "@commitlint/cli": "^19.8.0",
     "@commitlint/config-conventional": "^19.8.0",
     "@commitlint/types": "^19.8.0",
-    "@eslint/js": "^9.22.0",
+    "@prettier/plugin-oxc": "^0.0.4",
     "@types/axios-mock-adapter": "^1.10.4",
     "@types/ioredis-mock": "^8.2.6",
     "@types/node": "^22.13.10",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
-    "@typescript-eslint/eslint-plugin": "^8.26.1",
-    "@typescript-eslint/parser": "^8.26.1",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "3.2.4",
-    "axios": "^1.8.3",
     "axios-mock-adapter": "^2.1.0",
-    "dayjs": "^1.11.13",
-    "eslint": "^9.0.0",
-    "eslint-config-prettier": "^10.1.1",
-    "eslint-plugin-react": "^7.37.4",
-    "eslint-plugin-react-hooks": "^5.2.0",
     "husky": "^9.1.7",
     "ioredis": "^5.6.0",
     "ioredis-mock": "^8.9.0",
     "lint-staged": "^15.5.0",
+    "oxlint": "^1.23.0",
     "prettier": "^3.5.3",
     "prettier-plugin-organize-imports": "^4.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-hook-form": "^7.54.2",
-    "react-router": "^7.9.1",
-    "remix-toast": "^2.0.0",
+    "react-router": "^7.3.0",
     "rimraf": "^6.0.1",
-    "standard-version": "^9.5.0",
-    "tsc-alias": "^1.8.11",
+    "tsdown": "^0.15.6",
     "typescript": "^5.8.2",
-    "vite": "6.3.4",
-    "vitest": "^3.2.4",
-    "zod": "^3.24.2"
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4"
   },
   "lint-staged": {
     "src/**/*.+(js|ts|tsx|jsx|json)": [
-      "eslint",
+      "oxlint",
       "prettier --write"
     ]
   },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
-    "vite-tsconfig-paths": "^5.1.4"
-  }
+    "@bonny-kato/localstorage": "^0.0.2",
+    "axios": "^1.8.3",
+    "dayjs": "^1.11.13",
+    "react-hook-form": "^7.54.2",
+    "remix-toast": "^2.0.0",
+    "zod": "^3.24.2"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }
