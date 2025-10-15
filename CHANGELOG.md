@@ -2,7 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.3.5](https://github.com/Bonny-kato/r3-utils/compare/v3.0.0...v2.0.1) (2025-10-13)
+## [v2.3.5-beta.1](https://github.com/Bonny-kato/r3-utils/compare/v3.0.0...v2.0.1) (2025-10-13)
+
+### What's fixed
+
+**Http Module**
+
+- Address the issue where HTTP status codes were not being exported due to tree shaking during build
+
+## [v2.3.5-beta.0](https://github.com/Bonny-kato/r3-utils/compare/v3.0.0...v2.0.1) (2025-10-13)
 
 ### What's new
 

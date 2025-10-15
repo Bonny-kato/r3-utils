@@ -1,5 +1,4 @@
-import { HTTP_FORBIDDEN } from "~/http-client";
-import { throwCustomError } from "../utils";
+import { throwCustomError } from "~/utils";
 import { checkIfAuthorized } from "./access-control-helpers";
 import { generateUserAccessControlConfig } from "./generate-user-access-control-config";
 import { AuthUser, RequireAccessOptions, UserAccessControl } from "./type";
@@ -61,7 +60,7 @@ export const checkAccess = <TUser extends AuthUser>(
  * @param options.strictness - Strictness configuration for different access control types
  * @param options.unauthorizedErrorMessage - Custom error message when access is denied
  * @returns The original user object if access is granted
- * @throws Error with HTTP_FORBIDDEN status if access is denied
+ * @throws Error with 403 status if access is denied
  *
  * @example
  * ```typescript
@@ -112,7 +111,7 @@ export const requireAccess = <T extends AuthUser>(
     const hasAccess = checkAccess<T>(user, accessControl, strictness);
 
     if (!hasAccess) {
-        throwCustomError(unauthorizedErrorMessage, HTTP_FORBIDDEN);
+        throwCustomError(unauthorizedErrorMessage, 403);
     }
 
     return user;
