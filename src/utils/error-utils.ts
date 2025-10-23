@@ -13,8 +13,8 @@ export const throwCustomError = (
     statusCode: number
 ): never => {
     const error: ErrorResponse = {
-        status: statusCode,
         data: { message },
+        status: statusCode,
         statusText: message,
     };
 

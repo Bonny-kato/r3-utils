@@ -5,7 +5,7 @@
  * and permission-based access control in applications.
  */
 
-import { ErrorType } from "../http-client/try-catch-http";
+import { ErrorType } from "~/http-client/try-catch-http";
 
 /**
  * Interface representing a user role with associated permissions.

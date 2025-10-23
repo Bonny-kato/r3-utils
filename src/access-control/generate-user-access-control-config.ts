@@ -44,7 +44,7 @@ export const generateUserAccessControlConfig = <T extends AuthUser>(
     user?: T
 ): AccessControlConfig<T> => {
     const userRoles = user
-        ? (user.roles.map((role) => role.name.toLowerCase()) as RoleNames<T>[])
+        ? (user.roles.map((role) => role.name) as RoleNames<T>[])
         : [];
 
     const userAttributes: UserAttribute<T> = user
@@ -57,7 +57,7 @@ export const generateUserAccessControlConfig = <T extends AuthUser>(
 
     const userPermissions = user
         ? (user.roles.flatMap((role) =>
-              role.permissions.map((permission) => permission.toLowerCase())
+              role.permissions.map((permission) => permission)
           ) as UniquePermissions<T>[])
         : [];
 

@@ -1,4 +1,4 @@
-import { typedKeys } from "../utils/typed-keys";
+import { typedKeys } from "~/utils";
 import {
     AccessControlConfig,
     AccessControlStrictnessOptions,
@@ -33,7 +33,9 @@ export const hasRole = (
     strict = false
 ): boolean => {
     const roleCheckType = strict ? "every" : "some";
-    return requiredRoles[roleCheckType]((role) => userRoles.includes(role));
+    return requiredRoles[roleCheckType]((role) =>
+        userRoles.includes(role.toUpperCase())
+    );
 };
 
 /**
@@ -63,7 +65,7 @@ export const hasPermission = (
 ): boolean => {
     const permissionCheckType = strict ? "every" : "some";
     return requiredPermissions[permissionCheckType]((permission) =>
-        userPermissions.includes(permission)
+        userPermissions.includes(permission.toUpperCase())
     );
 };
 

@@ -81,8 +81,8 @@ const AccessControl = <T extends AuthUser = AuthUser>({
         accessControl,
         {
             attributes,
-            roles,
             permissions,
+            roles,
         },
         strictness
     );

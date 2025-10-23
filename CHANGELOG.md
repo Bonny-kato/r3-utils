@@ -2,7 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v2.3.5-beta.1](https://github.com/Bonny-kato/r3-utils/compare/v3.0.0...v2.0.1) (2025-10-13)
+## [v2.3.5-beta.2](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.2) (2025-10-23)
+
+### What's fixed
+
+**Access Control Module**
+
+- Addressed the issue where permissions and roles in capital letters caused checks to fail. By default, configured
+  permissions were converted to lowercase. This issue was fixed by removing the conversion and storing permissions and
+  roles as-is, making behavior more predictable. This also works better with custom GenerateAccessControlConfigFunc
+  where consumers can decide when to convert permissions and roles.
+- Fixed type issue in `AccessControl` component where the `permission`, `role`, and `attribute` props were marked as
+  non-existent.
+
+## [v2.3.5-beta.1](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.1) (2025-10-13)
 
 ### What's fixed
 
