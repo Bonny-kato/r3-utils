@@ -1,4 +1,4 @@
-import { throwCustomError } from "~/utils";
+import { throwCustomError, throwError } from "~/utils";
 import { checkIfAuthorized } from "./access-control-helpers";
 import { generateUserAccessControlConfig } from "./generate-user-access-control-config";
 import { AuthUser, RequireAccessOptions, UserAccessControl } from "./type";
@@ -113,6 +113,8 @@ export const requireAccess = <T extends AuthUser>(
     if (!hasAccess) {
         throwCustomError(unauthorizedErrorMessage, 403);
     }
+
+    throwError({ message: "ddkd", status: 400 });
 
     return user;
 };

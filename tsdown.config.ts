@@ -8,6 +8,7 @@ const sharableConfig: UserConfig = {
     external: ["node:process"],
     minify: true,
     sourcemap: true,
+    treeshake: false,
     unbundle: true,
 };
 
