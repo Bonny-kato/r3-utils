@@ -6,7 +6,7 @@ const sharableConfig: UserConfig = {
         sourcemap: true,
     },
     external: ["node:process"],
-    minify: true,
+    minify: false,
     sourcemap: true,
     treeshake: false,
     unbundle: true,
