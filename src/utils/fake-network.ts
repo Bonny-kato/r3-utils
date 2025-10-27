@@ -1,5 +1,3 @@
-import { checkIsDevMode } from "./check-is-dev-mode";
-
 /**
  * An asynchronous function that simulates a fake network delay.
  *
@@ -8,8 +6,6 @@ import { checkIsDevMode } from "./check-is-dev-mode";
  * @returns - A Promise that resolves after the specified delay.
  */
 export const fakeNetwork = async (time?: number) => {
-    if (checkIsDevMode()) {
-        const delayTime = time ?? Math.random() * 900;
-        return new Promise((res) => setTimeout(res, delayTime));
-    }
+    const delayTime = time ?? Math.random() * 900;
+    return new Promise((res) => setTimeout(res, delayTime));
 };

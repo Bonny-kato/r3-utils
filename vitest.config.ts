@@ -11,6 +11,5 @@ export default defineConfig({
         typecheck: {
             enabled: true,
         },
-        watch: true,
     },
 });

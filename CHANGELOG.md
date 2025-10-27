@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.3.5-beta.5](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.2) (2025-10-27)
+
+### What's fixed
+
+- address the issue of some module are stripped out expectedly due tos how tsdown handle tree-shakable when you provide
+  array of config
+
+- add new test files to validate the build output
+
 ## [v2.3.5-beta.2](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.2) (2025-10-23)
 
 ### What's fixed

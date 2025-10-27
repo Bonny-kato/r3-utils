@@ -6,9 +6,8 @@ const sharableConfig: UserConfig = {
         sourcemap: true,
     },
     external: ["node:process"],
-    minify: false,
+    minify: true,
     sourcemap: true,
-    treeshake: false,
     unbundle: true,
 };
 
@@ -19,13 +18,6 @@ export default defineConfig([
             "src/access-control/index.ts",
             "src/cache/index.ts",
             "src/hooks/index.ts",
-        ],
-        platform: "browser",
-    },
-
-    {
-        ...sharableConfig,
-        entry: [
             "src/http-client/index.ts",
             "src/utils/index.ts",
             "src/zod-common/index.ts",

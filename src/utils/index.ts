@@ -12,11 +12,12 @@ export {
     type EnvValidatorOptions,
     type Environment,
 } from "./env-validator/env-validator";
-export { safeRedirect, throwCustomError, throwError } from "./error-utils";
-export { fakeNetwork } from "./fake-nerwork";
+export * from "./error-utils";
+export { fakeNetwork } from "./fake-network";
 export { formatAmount } from "./format-amount";
 export { generateAvatar } from "./generate-avatar";
 export { getDurationFromNow } from "./get-duration-from-now";
+export { isNotEmpty } from "./is-not-empty";
 export {
     getErrorMessage,
     isCustomErrorResponse,

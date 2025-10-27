@@ -171,8 +171,6 @@ export class RedisStorageAdapter<User extends UserIdentifier>
      * @returns A promise that resolves when the user has been removed
      */
     async remove(sessionId: string) {
-        console.log("[remove:]", sessionId);
-
         return tryCatch(async () => {
             const startTime = this.#loggingConfig.logTiming ? Date.now() : 0;
             this.#log("debug", "Starting remove operation", {
