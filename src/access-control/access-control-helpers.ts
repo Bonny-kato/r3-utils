@@ -33,9 +33,7 @@ export const hasRole = (
     strict = false
 ): boolean => {
     const roleCheckType = strict ? "every" : "some";
-    return requiredRoles[roleCheckType]((role) =>
-        userRoles.includes(role.toUpperCase())
-    );
+    return requiredRoles[roleCheckType]((role) => userRoles.includes(role));
 };
 
 /**
@@ -65,7 +63,7 @@ export const hasPermission = (
 ): boolean => {
     const permissionCheckType = strict ? "every" : "some";
     return requiredPermissions[permissionCheckType]((permission) =>
-        userPermissions.includes(permission.toUpperCase())
+        userPermissions.includes(permission)
     );
 };
 

@@ -2,14 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v2.3.5-beta.5](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.2) (2025-10-27)
+## [v2.3.5-beta.6](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.6) (2025-10-28)
 
 ### What's fixed
 
-- address the issue of some module are stripped out expectedly due tos how tsdown handle tree-shakable when you provide
-  array of config
+- Fixed the issue of permissions and roles matching due to case transformation that was being done in `hasPermission`
+  and `hasRole`
 
-- add new test files to validate the build output
+## [v2.3.5-beta.5](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.5) (2025-10-27)
+
+### What's fixed
+
+- Addressed the issue where some modules were unexpectedly stripped out due to how tsup handles tree-shaking when
+  provided with an array of configs
+
+- Added new test files to validate the build output
 
 ## [v2.3.5-beta.2](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.2) (2025-10-23)
 
