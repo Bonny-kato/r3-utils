@@ -1,6 +1,6 @@
 {
     "name": "r3-utils",
-    "version": "2.3.5-beta.5",
+    "version": "2.3.5-beta.6",
     "description": "A library of reusable hooks, utilities, and components for React Router v7",
     "type": "module",
     "exports": {
