@@ -1,18 +1,86 @@
 import { typedKeys } from "~/utils";
 import {
+    AccessCheckOptions,
     AccessControlConfig,
     AccessControlStrictnessOptions,
+    AccessRequirement,
     AuthUser,
+    RoleNames,
+    UniquePermissions,
     UserAccessControl,
     UserAttribute,
 } from "./type";
+
+const normalizeCheckOptions = (
+    options: boolean | AccessCheckOptions | undefined
+): Required<AccessCheckOptions> => {
+    if (typeof options === "boolean") {
+        return { not: false, requireAll: options };
+    }
+
+    return {
+        not: options?.not ?? false,
+        requireAll: options?.requireAll ?? false,
+    };
+};
+
+const isAccessRequirement = <T>(
+    value: unknown
+): value is AccessRequirement<T> => {
+    return (
+        !!value &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        "list" in (value as Record<string, unknown>)
+    );
+};
+
+export const normalizeAccessRequirement = <T>(
+    input: T | T[] | AccessRequirement<T> | undefined,
+    legacyStrictness?: boolean
+): AccessRequirement<T> => {
+    const defaultRequireAll = legacyStrictness ?? false;
+
+    if (input == null) {
+        return {
+            list: [],
+            not: false,
+            requireAll: defaultRequireAll,
+        };
+    }
+
+    if (isAccessRequirement<T>(input)) {
+        return {
+            list: input.list ?? [],
+            not: input.not ?? false,
+            requireAll: input.requireAll ?? defaultRequireAll,
+        };
+    }
+
+    if (Array.isArray(input)) {
+        return {
+            list: input,
+            not: false,
+            requireAll: defaultRequireAll,
+        };
+    }
+
+    // Fallback for a single value (e.g., plain attribute object)
+    return {
+        list: [input],
+        not: false,
+        requireAll: defaultRequireAll,
+    };
+};
 
 /**
  * Checks if a user has the required roles based on their assigned roles.
  *
  * @param userRoles - Array of role names assigned to the user
  * @param requiredRoles - Array of role names required for access
- * @param strict - If true, user must have ALL required roles. If false, user needs at least ONE required role. Default: false
+ * @param options - Options controlling how the requirement is evaluated.
+ * Can be a boolean (legacy `strict` flag) or an object with
+ * `requireAll` and `not` for granular control.
  * @returns True if the user has the required roles, false otherwise
  *
  * @example
@@ -23,17 +91,27 @@ import {
  * // Non-strict mode (default) - user needs at least one role
  * hasRole(userRoles, requiredRoles); // true
  *
- * // Strict mode - user needs all roles
+ * // Strict mode using legacy boolean - user needs all roles
  * hasRole(userRoles, ['admin', 'superuser'], true); // false
+ *
+ * // Using options object
+ * hasRole(userRoles, ['admin', 'superuser'], { requireAll: true }); // false
+ * hasRole(userRoles, ['banned'], { not: true }); // true when user does NOT have 'banned'
  * ```
  */
-export const hasRole = (
-    userRoles: string[],
-    requiredRoles: string[],
-    strict = false
+export const hasRole = <TUser extends AuthUser>(
+    userRoles: RoleNames<TUser>[],
+    requiredRoles: RoleNames<TUser>[],
+    options: boolean | AccessCheckOptions = {}
 ): boolean => {
-    const roleCheckType = strict ? "every" : "some";
-    return requiredRoles[roleCheckType]((role) => userRoles.includes(role));
+    const { requireAll, not } = normalizeCheckOptions(options);
+    const roleCheckType = requireAll ? "every" : "some";
+    const hasMatch =
+        requiredRoles.length === 0
+            ? true
+            : requiredRoles[roleCheckType]((role) => userRoles.includes(role));
+
+    return not ? !hasMatch : hasMatch;
 };
 
 /**
@@ -41,7 +119,9 @@ export const hasRole = (
  *
  * @param userPermissions - Array of permission strings assigned to the user
  * @param requiredPermissions - Array of permission strings required for access
- * @param strict - If true, user must have ALL required permissions. If false, user needs at least ONE required permission. Default: false
+ * @param options - Options controlling how the requirement is evaluated.
+ * Can be a boolean (legacy `strict` flag) or an object with
+ * `requireAll` and `not` for granular control.
  * @returns True if the user has the required permissions, false otherwise
  *
  * @example
@@ -52,19 +132,28 @@ export const hasRole = (
  * // Non-strict mode (default) - user needs at least one permission
  * hasPermission(userPermissions, requiredPermissions); // true
  *
- * // Strict mode - user needs all permissions
+ * // Strict mode using legacy boolean - user needs all permissions
  * hasPermission(userPermissions, ['read:users', 'delete:users'], true); // false
+ *
+ * // Using options object
+ * hasPermission(userPermissions, ['banned:action'], { not: true }); // true when user does NOT have banned:action
  * ```
  */
-export const hasPermission = (
-    userPermissions: string[],
-    requiredPermissions: string[],
-    strict = false
+export const hasPermission = <TUser extends AuthUser>(
+    userPermissions: UniquePermissions<TUser>[],
+    requiredPermissions: UniquePermissions<TUser>[],
+    options: boolean | AccessCheckOptions = {}
 ): boolean => {
-    const permissionCheckType = strict ? "every" : "some";
-    return requiredPermissions[permissionCheckType]((permission) =>
-        userPermissions.includes(permission)
-    );
+    const { requireAll, not } = normalizeCheckOptions(options);
+    const permissionCheckType = requireAll ? "every" : "some";
+    const hasMatch =
+        requiredPermissions.length === 0
+            ? true
+            : requiredPermissions[permissionCheckType]((permission) =>
+                  userPermissions.includes(permission)
+              );
+
+    return not ? !hasMatch : hasMatch;
 };
 
 /**
@@ -73,8 +162,11 @@ export const hasPermission = (
  *
  * @template T - Type that extends AuthUser
  * @param userAttributes - Object containing the user's attributes (excluding roles)
- * @param requiredAttributes - Object containing the required attribute values for access
- * @param strict - If true, user must match ALL required attributes. If false, user needs to match at least ONE required attribute. Default: false
+ * @param requiredAttributes - Object (or list of objects) containing the required
+ * attribute values for access.
+ * @param options - Options controlling how the requirement is evaluated.
+ * Can be a boolean (legacy `strict` flag) or an object with
+ * `requireAll` and `not` for granular control.
  * @returns True if the user has the required attributes, false otherwise
  *
  * @example
@@ -92,13 +184,38 @@ export const hasPermission = (
  */
 export const hasAttribute = <T extends AuthUser>(
     userAttributes: UserAttribute<T>,
-    requiredAttributes: UserAttribute<T>,
-    strict = false
+    requiredAttributes: UserAttribute<T> | UserAttribute<T>[],
+    options: boolean | AccessCheckOptions = {}
 ): boolean => {
-    const attributesCheckType = strict ? "every" : "some";
-    return typedKeys(requiredAttributes)[attributesCheckType](
-        (key) => userAttributes[key] === requiredAttributes[key]
-    );
+    const { requireAll, not } = normalizeCheckOptions(options);
+    const requiredList = Array.isArray(requiredAttributes)
+        ? requiredAttributes
+        : [requiredAttributes];
+
+    if (requiredList.length === 0) {
+        const base = true;
+        return not ? !base : base;
+    }
+
+    let hasMatch: boolean;
+
+    if (requiredList.length === 1) {
+        const [attr] = requiredList;
+        const keyCheckType = requireAll ? "every" : "some";
+
+        hasMatch = typedKeys(attr)[keyCheckType](
+            (key) => userAttributes[key] === attr[key]
+        );
+    } else {
+        const listCheckType = requireAll ? "every" : "some";
+
+        hasMatch = requiredList[listCheckType]((attr) =>
+            // Todo: Implement deep comparison on attributes
+            typedKeys(attr).every((key) => userAttributes[key] === attr[key])
+        );
+    }
+
+    return not ? !hasMatch : hasMatch;
 };
 
 /**
@@ -138,22 +255,48 @@ export const checkIfAuthorized = <TUser extends AuthUser>(
     strictnessOptions = {} as AccessControlStrictnessOptions
 ) => {
     const { userRoles, userPermissions, userAttributes } = userAccess;
-    const { roles = [], permissions = [], attributes = {} } = requiredAccess;
+    const { roles, permissions, attributes } = requiredAccess;
 
-    return (
-        (roles.length === 0 ||
-            hasRole(userRoles, roles, strictnessOptions.roles)) &&
-        (permissions.length === 0 ||
-            hasPermission(
-                userPermissions,
-                permissions,
-                strictnessOptions.permissions
-            )) &&
-        (Object.keys(attributes).length === 0 ||
-            hasAttribute<TUser>(
-                userAttributes,
-                attributes,
-                strictnessOptions.attributes
-            ))
+    // ----------------------------------------------------------------------
+    //  Normalize Access
+    // ----------------------------------------------------------------------
+    const normalizedRoles = normalizeAccessRequirement<RoleNames<TUser>>(
+        roles as RoleNames<TUser>[] | AccessRequirement<RoleNames<TUser>>,
+        strictnessOptions.roles
     );
+
+    const normalizedPermissions = normalizeAccessRequirement<
+        UniquePermissions<TUser>
+    >(permissions, strictnessOptions.permissions);
+
+    const normalizedAttributes = normalizeAccessRequirement<
+        UserAttribute<TUser>
+    >(attributes, strictnessOptions.attributes);
+
+    // ----------------------------------------------------------------------
+    //  Access control checks
+    // ----------------------------------------------------------------------
+
+    const rolesOk =
+        normalizedRoles.list.length === 0 ||
+        hasRole(userRoles, normalizedRoles.list, {
+            not: normalizedRoles.not,
+            requireAll: normalizedRoles.requireAll,
+        });
+
+    const permissionsOk =
+        normalizedPermissions.list.length === 0 ||
+        hasPermission(userPermissions, normalizedPermissions.list, {
+            not: normalizedPermissions.not,
+            requireAll: normalizedPermissions.requireAll,
+        });
+
+    const attributesOk =
+        normalizedAttributes.list.length === 0 ||
+        hasAttribute<TUser>(userAttributes, normalizedAttributes.list, {
+            not: normalizedAttributes.not,
+            requireAll: normalizedAttributes.requireAll,
+        });
+
+    return rolesOk && permissionsOk && attributesOk;
 };

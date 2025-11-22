@@ -1,7 +1,7 @@
-import { throwCustomError, throwError } from "~/utils";
+import { throwCustomError } from "~/utils";
 import { checkIfAuthorized } from "./access-control-helpers";
 import { generateUserAccessControlConfig } from "./generate-user-access-control-config";
-import { AuthUser, RequireAccessOptions, UserAccessControl } from "./type";
+import { AccessControlStrictnessOptions, AuthUser, RequireAccessOptions, UserAccessControl, } from "./type";
 
 /**
  * Checks if a user has the required access based on their roles, permissions, and attributes.
@@ -10,7 +10,8 @@ import { AuthUser, RequireAccessOptions, UserAccessControl } from "./type";
  * @template TUser - Type that extends AuthUser
  * @param user - The user object to check access for
  * @param requiredAccess - The access requirements (roles, permissions, attributes) that need to be satisfied
- * @param strictnessOptions - Options to control strictness for each access type (default: {})
+ * @param strictnessOptions - Options to control strictness for each access type (default: {}).
+ * property (roles, permissions, or attributes) instead.
  * @returns True if the user has the required access, false otherwise
  *
  * @example
@@ -36,7 +37,7 @@ import { AuthUser, RequireAccessOptions, UserAccessControl } from "./type";
 export const checkAccess = <TUser extends AuthUser>(
     user: TUser,
     requiredAccess: UserAccessControl<TUser>,
-    strictnessOptions = {}
+    strictnessOptions: AccessControlStrictnessOptions = {} as AccessControlStrictnessOptions
 ): boolean => {
     const accessControlConfig = generateUserAccessControlConfig<TUser>(user);
 
@@ -57,7 +58,7 @@ export const checkAccess = <TUser extends AuthUser>(
  * @param user - The user object to check access for
  * @param accessControl - The access requirements (roles, permissions, attributes) that must be satisfied
  * @param options - Configuration options for access control behavior
- * @param options.strictness - Strictness configuration for different access control types
+ * @param options.strictness - Strictness configuration for different access control types.
  * @param options.unauthorizedErrorMessage - Custom error message when access is denied
  * @returns The original user object if access is granted
  * @throws Error with 403 status if access is denied
@@ -113,8 +114,6 @@ export const requireAccess = <T extends AuthUser>(
     if (!hasAccess) {
         throwCustomError(unauthorizedErrorMessage, 403);
     }
-
-    throwError({ message: "ddkd", status: 400 });
 
     return user;
 };

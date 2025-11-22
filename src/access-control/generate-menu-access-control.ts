@@ -26,6 +26,9 @@ export interface MenuItemConfig<TUser extends AuthUser = AuthUser> {
      * category (roles/permissions/attributes) must be present. When false, only one item needs
      * to match. Uses Array.every() for true and Array.some() for false.
      *
+     * @deprecated Deprecated. Use `requireAll` inside the specific access
+     * property (roles, permissions, or attributes) instead.
+     *
      * @default {
      *     attributes: false,
      *     permissions: false,

@@ -12,7 +12,7 @@ import {
  *
  * @template T - Type that extends AuthUser
  */
-interface AccessControlProps<T extends AuthUser = AuthUser>
+export interface AccessControlProps<T extends AuthUser = AuthUser>
     extends UserAccessControl<T> {
     /**
      * Content to render if the user has access
@@ -25,6 +25,10 @@ interface AccessControlProps<T extends AuthUser = AuthUser>
      */
     fallback?: ReactNode;
 
+    /**
+     * @deprecated Deprecated. Use `requireAll` inside the specific access
+     * property (roles, permissions, or attributes) instead.
+     */
     strictness?: AccessControlStrictnessOptions;
 }
 
@@ -68,9 +72,9 @@ interface AccessControlProps<T extends AuthUser = AuthUser>
  * ```
  */
 const AccessControl = <T extends AuthUser = AuthUser>({
-    roles = [],
-    permissions = [],
-    attributes = {},
+    roles,
+    permissions,
+    attributes,
     children,
     fallback = null,
     strictness = {} as AccessControlStrictnessOptions,
@@ -79,11 +83,7 @@ const AccessControl = <T extends AuthUser = AuthUser>({
 
     const isAuthorized = checkIfAuthorized(
         accessControl,
-        {
-            attributes,
-            permissions,
-            roles,
-        },
+        { attributes, permissions, roles },
         strictness
     );
 

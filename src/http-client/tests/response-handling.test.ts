@@ -12,9 +12,9 @@ describe("HttpClient", () => {
     describe("Response Handling", () => {
         const BASE_URL = "https://example.com/api/v1";
         const SUCCESS_RESPONSE = {
+            email: "john@example.com",
             id: 1,
             name: "John Doe",
-            email: "john@example.com",
         };
 
         let httpClient: HttpClient;
@@ -108,8 +108,8 @@ describe("HttpClient", () => {
                 .reply(HTTP_CREATED, SUCCESS_RESPONSE);
 
             const response = await httpClient.post("/users", {
-                name: "John Doe",
                 email: "john@example.com",
+                name: "John Doe",
             });
 
             // Verify tuple format for success

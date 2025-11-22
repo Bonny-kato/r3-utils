@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 
+import { tryCatch } from "~/utils";
 import {
     createEnvSchema,
     requiredInDevelopment,
@@ -8,10 +9,6 @@ import {
     requiredInProduction,
     validateEnv,
 } from "~/utils/env-validator/env-validator";
-
-const formZodError = <T>(error: unknown) => {
-    return (error as z.ZodError<T>).format();
-};
 
 describe("env-validator utility", () => {
     beforeEach(() => {
@@ -33,19 +30,20 @@ describe("env-validator utility", () => {
                     .superRefine(requiredInProduction),
             });
 
-            try {
-                schema.parse({});
-                expect.unreachable(
-                    "Schema validation should have thrown an error for missing required environment variable"
-                );
-            } catch (e) {
-                const error = formZodError<z.infer<typeof schema>>(e);
+            type EnvType = z.infer<typeof schema>;
+            type ParseError = ZodError<EnvType>;
 
-                expect.soft(error).toHaveProperty("API_KEY");
-                expect(error.API_KEY?._errors[0]).toBe(
-                    `Missing required environment variable API_KEY in production environment`
-                );
-            }
+            const [parseError, env] = tryCatch<EnvType, ParseError>(() =>
+                schema.parse({})
+            );
+
+            const formattedError = parseError?.format();
+
+            expect(env).toBe(null);
+            expect.soft(formattedError).toHaveProperty("API_KEY");
+            expect(formattedError?.API_KEY?._errors[0]).toBe(
+                `Missing required environment variable API_KEY in production environment`
+            );
         });
 
         it("does not throw when requiredInProduction var is missing in development", () => {
@@ -131,9 +129,9 @@ describe("env-validator utility", () => {
             vi.stubEnv("APP_NAME", "demo");
 
             const schema = createEnvSchema({
+                APP_NAME: { type: "string" },
                 ENABLE_FEATURE: { type: "boolean" },
                 PORT: { type: "number" },
-                APP_NAME: { type: "string" },
             });
 
             const result = validateEnv(schema);
@@ -147,7 +145,7 @@ describe("env-validator utility", () => {
             vi.stubEnv("NODE_ENV", "production");
 
             const schema = createEnvSchema({
-                API_KEY: { type: "string", requiredIn: ["production"] },
+                API_KEY: { requiredIn: ["production"], type: "string" },
             });
 
             expect(() => validateEnv(schema)).toThrowError(z.ZodError);
@@ -168,11 +166,11 @@ describe("env-validator utility", () => {
             expect(result.FLAG_TRUE_TRUE).toBe(true);
         });
 
-        it("it should not throw error when default value is provided env the value is not presented in env", () => {
+        it("should not throw error when default value is provided env the value is not presented in env", () => {
             vi.stubEnv("NODE_ENV", "development");
 
             const schema = createEnvSchema({
-                TEST_VAR: { type: "string", default: "default-value" },
+                TEST_VAR: { default: "default-value", type: "string" },
             });
 
             const result = validateEnv(schema);
@@ -232,9 +230,9 @@ describe("env-validator utility", () => {
 
             const schema = createEnvSchema({
                 DEV_VAR: {
-                    type: "string",
                     default: "dev-default",
                     requiredIn: ["development"],
+                    type: "string",
                 },
             });
 

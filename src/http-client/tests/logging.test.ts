@@ -37,9 +37,9 @@ describe("HttpClient", () => {
                 unknown
             >;
             expect.soft(loggedArg).toMatchObject({
+                baseURL: BASE_URL,
                 method: "GET",
                 url: "/users",
-                baseURL: BASE_URL,
             });
         });
 
@@ -83,11 +83,11 @@ describe("HttpClient", () => {
         it("should log correct request configuration", async () => {
             const httpClient = new HttpClient({
                 baseUrl: BASE_URL,
-                logRequests: true,
                 headers: {
-                    "X-Global": "1",
                     Accept: "application/json",
+                    "X-Global": "1",
                 },
+                logRequests: true,
                 timeout: 1234,
             });
             mockAxios = new AxiosMockAdapter(httpClient.axiosInstance);
@@ -102,8 +102,8 @@ describe("HttpClient", () => {
 
             const [err, data] = await httpClient.post("/users", BODY, {
                 headers: {
-                    "X-Per-Call": "2",
                     Accept: "application/vnd.custom+json",
+                    "X-Per-Call": "2",
                 },
             });
 
@@ -120,9 +120,9 @@ describe("HttpClient", () => {
 
             // Headers merged (per-call overrides global on conflict)
             expect.soft(logged.headers).toMatchObject({
+                Accept: "application/vnd.custom+json",
                 "X-Global": "1",
                 "X-Per-Call": "2",
-                Accept: "application/vnd.custom+json",
             });
 
             // Body present in logged config

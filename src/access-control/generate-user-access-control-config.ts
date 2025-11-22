@@ -1,10 +1,4 @@
-import {
-    AccessControlConfig,
-    AuthUser,
-    RoleNames,
-    UniquePermissions,
-    UserAttribute,
-} from "./type";
+import { AccessControlConfig, AuthUser, RoleNames, UniquePermissions, UserAttribute, } from "./type";
 
 /**
  * Generates an access control configuration from a user object.
@@ -43,6 +37,7 @@ import {
 export const generateUserAccessControlConfig = <T extends AuthUser>(
     user?: T
 ): AccessControlConfig<T> => {
+    // Todo validate the shape of auth user
     const userRoles = user
         ? (user.roles.map((role) => role.name) as RoleNames<T>[])
         : [];

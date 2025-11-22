@@ -6,7 +6,7 @@ type Value = string | Array<never> | object | null | undefined | number;
  */
 export const isNotEmpty = <T extends Value>(
     value: T | undefined
-): value is T => {
+): value is NonNullable<T> => {
     if (value == undefined) return false;
     if (typeof value === "string") return value.trim().length > 0;
     if (Array.isArray(value)) return value.length > 0;

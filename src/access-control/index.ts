@@ -15,6 +15,7 @@ import { checkAccess, requireAccess } from "./require-access";
 import {
     AccessControlConfig,
     AccessControlStrictnessOptions,
+    AccessRequirement,
     AuthUser,
     GenerateAccessControlConfigFunc,
     UserAccessControl,
@@ -38,6 +39,7 @@ export {
 export type {
     AccessControlConfig,
     AccessControlStrictnessOptions,
+    AccessRequirement,
     AuthUser,
     GenerateAccessControlConfigFunc,
     MenuConfig,

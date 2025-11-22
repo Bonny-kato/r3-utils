@@ -112,6 +112,35 @@ export type AllPermissions<T extends AuthUser> =
 export type UniquePermissions<T extends AuthUser> =
     AllPermissions<T> extends infer P ? (P extends string ? P : never) : never;
 
+/** Options for access control checks */
+export type AccessCheckOptions = {
+    /** If true, all items in the list must match. If false (default), at least one must match.
+     *
+     * @default false
+     * */
+    requireAll?: boolean;
+    /** If true, access is granted only if the condition is NOT met.
+     *
+     * @default false
+     * */
+    not?: boolean;
+};
+
+/** A normalized access requirement that enforces consistent validation logic */
+
+/**
+ * Configuration for a single access requirement list.
+ *
+ * This type is used to provide fine‑grained control over how
+ * roles, permissions, or attributes are evaluated.
+ */
+export interface AccessRequirement<T> extends AccessCheckOptions {
+    /**
+     * The list of items to validate against the current user context.
+     */
+    list: T[];
+}
+
 /**
  * Interface for specifying access control requirements.
  * Can be used to define what roles, permissions, or attributes
@@ -132,20 +161,35 @@ export interface UserAccessControl<T extends AuthUser = AuthUser> {
     /**
      * List of roles that are allowed access.
      * If provided, the user must have at least one of these roles.
+     *
+     * The simple array format is kept for backward compatibility.
+     * For new code, prefer using {@link AccessRequirement} to
+     * configure per‑requirement options like `requireAll` and `not`.
      */
-    roles?: RoleNames<T>[];
+    roles?: RoleNames<T>[] | AccessRequirement<RoleNames<T>>;
 
     /**
      * List of permissions required for access.
-     * If provided, the user must have all of these permissions.
+     * If provided, the user must have at least one of these permissions
+     * by default.
+     *
+     * The simple array format is kept for backward compatibility.
+     * For new code, prefer using {@link AccessRequirement} to
+     * configure per‑requirement options like `requireAll` and `not`.
      */
-    permissions?: UniquePermissions<T>[];
+    permissions?:
+        | UniquePermissions<T>[]
+        | AccessRequirement<UniquePermissions<T>>;
 
     /**
      * Additional attributes required for access.
-     * If provided, the user must match all of these attributes.
+     * If provided, the user must match the configured attributes.
+     *
+     * The plain object format is kept for backward compatibility.
+     * For new code, prefer using {@link AccessRequirement} to
+     * configure per‑requirement options like `requireAll` and `not`.
      */
-    attributes?: UserAttribute<T>;
+    attributes?: UserAttribute<T> | AccessRequirement<UserAttribute<T>>;
 }
 
 /**
@@ -188,6 +232,9 @@ export type ActionErrorType<
  * When set to true, the corresponding check requires ALL conditions to be met.
  * When set to false or undefined, only ONE condition needs to be met.
  *
+ * @deprecated Deprecated. Use `requireAll` inside the specific access
+ * property (roles, permissions, or attributes) instead.
+ *
  * @example
  * ```typescript
  * const strictOptions: AccessControlStrictnessOptions = {
@@ -218,7 +265,12 @@ export type AccessControlStrictnessOptions = {
  * ```
  */
 export type RequireAccessOptions = {
-    /** Strictness configuration for different access control types */
+    /**
+     * Strictness configuration for different access control types.
+     *
+     * @deprecated Deprecated. Use `requireAll` inside the specific access
+     * property (roles, permissions, or attributes) instead.
+     */
     strictness?: AccessControlStrictnessOptions;
     /** Custom error message to display when access is denied */
     unauthorizedErrorMessage?: string;

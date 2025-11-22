@@ -81,8 +81,8 @@ describe("HttpClient", () => {
 
             it("should make GET request with query parameters", async () => {
                 const urlSearchParams = serializeQueryParams({
-                    page: 1,
                     limit: 10,
+                    page: 1,
                 });
 
                 mockAxios
