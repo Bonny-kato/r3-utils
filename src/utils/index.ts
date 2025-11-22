@@ -18,6 +18,7 @@ export { formatAmount } from "./format-amount";
 export { generateAvatar } from "./generate-avatar";
 export { getDurationFromNow } from "./get-duration-from-now";
 export { isNotEmpty } from "./is-not-empty";
+export { normalizeToArray } from "./normalize-to-array";
 export {
     getErrorMessage,
     isCustomErrorResponse,

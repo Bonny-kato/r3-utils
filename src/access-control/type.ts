@@ -75,6 +75,7 @@ export type AuthUserWithoutRoles<T extends AuthUser> = Omit<T, "roles">;
  *   isActive: true
  * };
  * ```
+ *
  */
 export type UserAttribute<T extends AuthUser = AuthUser> = Partial<
     AuthUserWithoutRoles<T>
@@ -142,6 +143,36 @@ export interface AccessRequirement<T> extends AccessCheckOptions {
 }
 
 /**
+ * Attribute-specific requirement that allows using a single attribute object
+ * instead of an array. This improves ergonomics for attribute checks while
+ * remaining compatible with the internal normalization which converts it to
+ * an array.
+ */
+export interface AttributeRequirement<T extends AuthUser = AuthUser>
+    extends AccessCheckOptions {
+    /** canonical */
+    criteria: UserAttribute<T>;
+}
+
+type NeverAllProps<T> = {
+    [K in keyof T]?: never;
+};
+
+/**
+ * A plain attribute object with an explicit ban on requirement keys.
+ *
+ * This helps TypeScript discriminate between:
+ * - a direct `UserAttribute` object (no control keys), and
+ * - an `AttributeRequirement`/`AccessRequirement` object (has control keys like
+ *   `requireAll`/`not` and a `list`/`criteria`).
+ *
+ * If any of these keys are present, the type will no longer match the plain
+ * attribute shape, nudging TS to interpret the value as a requirement object.
+ */
+export type PlainUserAttribute<T extends AuthUser = AuthUser> =
+    UserAttribute<T> & NeverAllProps<AttributeRequirement<T>>;
+
+/**
  * Interface for specifying access control requirements.
  * Can be used to define what roles, permissions, or attributes
  * are required to access a resource or perform an action.
@@ -189,7 +220,7 @@ export interface UserAccessControl<T extends AuthUser = AuthUser> {
      * For new code, prefer using {@link AccessRequirement} to
      * configure per‑requirement options like `requireAll` and `not`.
      */
-    attributes?: UserAttribute<T> | AccessRequirement<UserAttribute<T>>;
+    attributes?: PlainUserAttribute<T> | AttributeRequirement<T>;
 }
 
 /**

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
     AccessControlConfig,
-    AccessRequirement,
     AuthUser,
     hasAttribute,
     hasPermission,
@@ -139,7 +138,7 @@ describe("Access Control Helpers", () => {
 
         const attributesRequirement: UserAccessControl<TUser> = {
             attributes: {
-                list: [{ age: 18 }, { location: "Arusha" }],
+                criteria: { age: 18, location: "Arusha" },
                 requireAll: false,
             },
         };
@@ -151,15 +150,54 @@ describe("Access Control Helpers", () => {
 
         const strictAttributesRequirement: UserAccessControl<TUser> = {
             attributes: {
-                list: [{ age: 18 }, { location: "Arusha" }],
+                criteria: { age: 18, location: "Arusha" },
                 requireAll: true,
-            } as AccessRequirement<Partial<TUser>>,
+            },
         };
 
         // requireAll:true => all attribute objects must match, which they don't
         expect(
             checkIfAuthorized(accessConfig, strictAttributesRequirement)
         ).toBe(false);
+    });
+
+    it("should support AttributeRequirement object list for attributes", () => {
+        type TUser = TestAccAuthUser;
+
+        const accessConfig: AccessControlConfig<TUser> = {
+            userAttributes: {
+                age: 18,
+                location: "Arusha",
+                name: "John",
+            },
+            userPermissions: ["read:users"],
+            userRoles: ["admin"],
+        };
+
+        // New object-based attribute requirement (no array)
+        const objectBasedAttributes: UserAccessControl<TUser> = {
+            attributes: {
+                criteria: { location: "Arusha" },
+                not: false,
+                requireAll: true,
+            },
+        } as UserAccessControl<TUser>;
+
+        expect(checkIfAuthorized(accessConfig, objectBasedAttributes)).toBe(
+            true
+        );
+
+        const negatedObjectAttributes: UserAccessControl<TUser> = {
+            attributes: {
+                criteria: { location: "Dodoma" },
+                not: true,
+            },
+        } as UserAccessControl<TUser>;
+
+        // User does not have location Dodoma, and not:true inverts => grants access
+        expect(checkIfAuthorized(accessConfig, negatedObjectAttributes)).toBe(
+            true
+        );
     });
 
     it("should support deep attribute equality checks in hasAttribute", () => {

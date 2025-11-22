@@ -1,9 +1,10 @@
-import { typedKeys } from "~/utils";
+import { normalizeToArray, typedKeys } from "~/utils";
 import {
     AccessCheckOptions,
     AccessControlConfig,
     AccessControlStrictnessOptions,
     AccessRequirement,
+    AttributeRequirement,
     AuthUser,
     RoleNames,
     UniquePermissions,
@@ -35,8 +36,23 @@ const isAccessRequirement = <T>(
     );
 };
 
+const isAttributesRequirement = <T extends AuthUser>(
+    input: unknown
+): input is AttributeRequirement<T> => {
+    return (
+        !!input &&
+        typeof input === "object" &&
+        !Array.isArray(input) &&
+        "criteria" in input
+    );
+};
+
+// ----------------------------------------------------------------------
+//  normalizeAccessRequirement
+// ----------------------------------------------------------------------
+
 export const normalizeAccessRequirement = <T>(
-    input: T | T[] | AccessRequirement<T> | undefined,
+    input: T | T[] | AccessRequirement<T> | AttributeRequirement | undefined,
     legacyStrictness?: boolean
 ): AccessRequirement<T> => {
     const defaultRequireAll = legacyStrictness ?? false;
@@ -49,11 +65,17 @@ export const normalizeAccessRequirement = <T>(
         };
     }
 
-    if (isAccessRequirement<T>(input)) {
+    if (isAccessRequirement<T>(input) || isAttributesRequirement(input)) {
+        const i = input as any;
+        const listRaw = isAttributesRequirement(input)
+            ? (i.criteria ?? i.values ?? i.list)
+            : i.list;
+
         return {
-            list: input.list ?? [],
-            not: input.not ?? false,
-            requireAll: input.requireAll ?? defaultRequireAll,
+            list: normalizeToArray(listRaw as T),
+            not: (input as AccessCheckOptions).not ?? false,
+            requireAll:
+                (input as AccessCheckOptions).requireAll ?? defaultRequireAll,
         };
     }
 
@@ -67,12 +89,15 @@ export const normalizeAccessRequirement = <T>(
 
     // Fallback for a single value (e.g., plain attribute object)
     return {
-        list: [input],
+        list: [input as T],
         not: false,
         requireAll: defaultRequireAll,
     };
 };
 
+// ----------------------------------------------------------------------
+//  hasRole
+// ----------------------------------------------------------------------
 /**
  * Checks if a user has the required roles based on their assigned roles.
  *
@@ -113,6 +138,10 @@ export const hasRole = <TUser extends AuthUser>(
 
     return not ? !hasMatch : hasMatch;
 };
+
+// ----------------------------------------------------------------------
+//  hasPermission
+// ----------------------------------------------------------------------
 
 /**
  * Checks if a user has the required permissions based on their assigned permissions.
@@ -183,6 +212,8 @@ const deepEqual = (a: any, b: any): boolean => {
     return false;
 };
 
+// ----------------------------------------------------------------------
+
 /**
  * Checks if a user has the required attributes based on their user attributes.
  * Performs attribute-based access control by comparing user attributes with required values.
@@ -224,24 +255,12 @@ export const hasAttribute = <T extends AuthUser>(
         return not ? !base : base;
     }
 
-    let hasMatch: boolean;
+    const [attr] = requiredList;
+    const keyCheckType = requireAll ? "every" : "some";
 
-    if (requiredList.length === 1) {
-        const [attr] = requiredList;
-        const keyCheckType = requireAll ? "every" : "some";
-
-        hasMatch = typedKeys(attr)[keyCheckType]((key) =>
-            deepEqual(userAttributes[key], attr[key])
-        );
-    } else {
-        const listCheckType = requireAll ? "every" : "some";
-
-        hasMatch = requiredList[listCheckType]((attr) =>
-            typedKeys(attr).every((key) =>
-                deepEqual(userAttributes[key], attr[key])
-            )
-        );
-    }
+    const hasMatch = typedKeys(attr)[keyCheckType]((key) =>
+        deepEqual(userAttributes[key], attr[key])
+    );
     return not ? !hasMatch : hasMatch;
 };
 
