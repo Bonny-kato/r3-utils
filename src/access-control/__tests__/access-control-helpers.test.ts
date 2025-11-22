@@ -161,4 +161,39 @@ describe("Access Control Helpers", () => {
             checkIfAuthorized(accessConfig, strictAttributesRequirement)
         ).toBe(false);
     });
+
+    it("should support deep attribute equality checks in hasAttribute", () => {
+        interface DeepUser extends TestAccAuthUser {
+            profile: {
+                address: { city: string; zip: number };
+                preferences: { email: boolean };
+            };
+        }
+
+        const userAttrs: Partial<DeepUser> = {
+            profile: {
+                address: { city: "Arusha", zip: 12345 },
+                preferences: { email: true },
+            },
+        };
+
+        // Deep objects must be strictly equal (shape and values) to match
+        const requiredOk: Partial<DeepUser> = {
+            profile: {
+                address: { city: "Arusha", zip: 12345 },
+                preferences: { email: true },
+            },
+        };
+
+        expect(hasAttribute<DeepUser>(userAttrs, requiredOk)).toBe(true);
+
+        const requiredBad: Partial<DeepUser> = {
+            profile: {
+                address: { city: "Arusha", zip: 12345 },
+                preferences: { email: false },
+            },
+        };
+
+        expect(hasAttribute<DeepUser>(userAttrs, requiredBad)).toBe(false);
+    });
 });

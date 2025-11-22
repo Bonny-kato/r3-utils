@@ -1,4 +1,10 @@
-import { AccessControlConfig, AuthUser, RoleNames, UniquePermissions, UserAttribute, } from "./type";
+import {
+    AccessControlConfig,
+    AuthUser,
+    RoleNames,
+    UniquePermissions,
+    UserAttribute,
+} from "./type";
 
 /**
  * Generates an access control configuration from a user object.

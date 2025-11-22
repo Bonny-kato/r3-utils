@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderWithAccessControlProvider, TestAcUser, } from "~/access-control/access-control-test-utils";
+import {
+    renderWithAccessControlProvider,
+    TestAcUser,
+} from "~/access-control/access-control-test-utils";
 import { createAccessControl } from "~/access-control/create-access-control";
 
 describe("AccessControl Component", () => {

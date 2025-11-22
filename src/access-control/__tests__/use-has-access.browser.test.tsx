@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { renderWithAccessControlProvider, TestAcUser, } from "~/access-control/access-control-test-utils";
+import {
+    renderWithAccessControlProvider,
+    TestAcUser,
+} from "~/access-control/access-control-test-utils";
 import type { UserAccessControl } from "~/access-control/type";
 import { useHasAccess } from "~/access-control/use-has-access";
 

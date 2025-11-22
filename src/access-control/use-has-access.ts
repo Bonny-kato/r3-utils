@@ -1,6 +1,6 @@
-import { AuthUser, UserAccessControl } from "./type";
 import { checkIfAuthorized } from "./access-control-helpers";
 import { useAccessControl } from "./access-control-provider";
+import { AuthUser, UserAccessControl } from "./type";
 
 /**
  * Custom hook to determine if the user has the specified roles, permissions, or attributes.

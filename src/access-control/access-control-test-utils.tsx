@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
+import { render } from "vitest-browser-react";
 import { AccessControlProvider } from "~/access-control/access-control-provider";
 import { AccessControlConfig, AuthUser } from "~/access-control/type";
-import { render } from "vitest-browser-react";
 
 export interface TestAcUser extends AuthUser {
     age: number;

@@ -156,6 +156,33 @@ export const hasPermission = <TUser extends AuthUser>(
     return not ? !hasMatch : hasMatch;
 };
 
+// ----------------------------------------------------------------------
+//  hasAttributes
+// ----------------------------------------------------------------------
+
+const deepEqual = (a: any, b: any): boolean => {
+    if (a === b) return true;
+
+    if (typeof a !== typeof b) return false;
+
+    if (a && b && typeof a === "object") {
+        // Arrays
+        if (Array.isArray(a) && Array.isArray(b)) {
+            if (a.length !== b.length) return false;
+            return a.every((v, i) => deepEqual(v, b[i]));
+        }
+
+        // Objects
+        const aKeys = Object.keys(a);
+        const bKeys = Object.keys(b);
+        if (aKeys.length !== bKeys.length) return false;
+
+        return aKeys.every((key) => deepEqual(a[key], b[key]));
+    }
+
+    return false;
+};
+
 /**
  * Checks if a user has the required attributes based on their user attributes.
  * Performs attribute-based access control by comparing user attributes with required values.
@@ -203,20 +230,24 @@ export const hasAttribute = <T extends AuthUser>(
         const [attr] = requiredList;
         const keyCheckType = requireAll ? "every" : "some";
 
-        hasMatch = typedKeys(attr)[keyCheckType](
-            (key) => userAttributes[key] === attr[key]
+        hasMatch = typedKeys(attr)[keyCheckType]((key) =>
+            deepEqual(userAttributes[key], attr[key])
         );
     } else {
         const listCheckType = requireAll ? "every" : "some";
 
         hasMatch = requiredList[listCheckType]((attr) =>
-            // Todo: Implement deep comparison on attributes
-            typedKeys(attr).every((key) => userAttributes[key] === attr[key])
+            typedKeys(attr).every((key) =>
+                deepEqual(userAttributes[key], attr[key])
+            )
         );
     }
-
     return not ? !hasMatch : hasMatch;
 };
+
+// ----------------------------------------------------------------------
+//  checkIfAuthorized
+// ----------------------------------------------------------------------
 
 /**
  * Comprehensive authorization check that evaluates user access against required roles, permissions, and attributes.

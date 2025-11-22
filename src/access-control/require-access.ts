@@ -1,7 +1,12 @@
 import { throwCustomError } from "~/utils";
 import { checkIfAuthorized } from "./access-control-helpers";
 import { generateUserAccessControlConfig } from "./generate-user-access-control-config";
-import { AccessControlStrictnessOptions, AuthUser, RequireAccessOptions, UserAccessControl, } from "./type";
+import {
+    AccessControlStrictnessOptions,
+    AuthUser,
+    RequireAccessOptions,
+    UserAccessControl,
+} from "./type";
 
 /**
  * Checks if a user has the required access based on their roles, permissions, and attributes.

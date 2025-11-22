@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import {
+    renderWithAccessControlProvider,
+    TestAcUser,
+} from "~/access-control/access-control-test-utils";
 import { createAccessControl } from "~/access-control/create-access-control";
-import { renderWithAccessControlProvider, TestAcUser } from "~/access-control/access-control-test-utils";
 
 describe("AccessControl Component - strictness options (browser)", () => {
     const { AccessControl } = createAccessControl<TestAcUser>();
