@@ -8,6 +8,7 @@ export {
     type BaseUrl,
     type Endpoint,
     type HttpRequestConfig,
+    type RetryConfig,
 } from "./httpclient";
 export * from "./status-code";
 export { tryCatchHttp, type TryCatchHttpReturnType } from "./try-catch-http";

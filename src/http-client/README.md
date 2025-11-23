@@ -12,6 +12,52 @@ The HTTP Client module provides a simple and consistent way to make API requests
 - Automatic content type detection (JSON vs FormData)
 - Development mode logging for debugging
 - TypeScript support with generics for type safety
+- Request retry with exponential backoff
+- Request deduplication to prevent duplicate in-flight requests
+
+## Retry and Deduplication
+
+### Request Retry
+
+The HTTP client supports automatic retry of failed requests with configurable retry behavior.
+
+```typescript
+import { HttpClient, type RetryConfig } from 'r3-utils/http-client';
+
+const api = new HttpClient({
+  baseUrl: 'https://api.example.com',
+  retry: {
+    maxRetries: 3,
+    retryDelay: 1000,
+    exponentialBackoff: true,
+    retryableStatuses: [408, 429, 500, 502, 503, 504],
+    shouldRetry: (error, attemptNumber) => {
+      return attemptNumber < 3;
+    }
+  }
+});
+```
+
+The retry configuration supports the following options:
+
+- `maxRetries`: Maximum number of retry attempts
+- `retryDelay`: Initial delay in milliseconds before first retry
+- `exponentialBackoff`: Whether to use exponential backoff for retry delays
+- `retryableStatuses`: HTTP status codes that should trigger a retry
+- `shouldRetry`: Custom function to determine if an error should trigger a retry
+
+### Request Deduplication
+
+Request deduplication prevents multiple identical GET requests from being sent simultaneously. When enabled, if the same GET request is made multiple times before the first request completes, subsequent requests will wait for and share the result of the first request.
+
+```typescript
+const api = new HttpClient({
+  baseUrl: 'https://api.example.com',
+  enableDeduplication: true
+});
+```
+
+This is particularly useful in scenarios where the same data might be requested from multiple components simultaneously.
 
 ## API
 

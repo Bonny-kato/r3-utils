@@ -1,4 +1,4 @@
-import { CacheAdapter, InMemoryCacheAdapter, LocalStorageCacheAdapter } from "./adapters";
+import { CacheAdapter, InMemoryCacheAdapter, LocalStorageCacheAdapter, IndexedDBCacheAdapter } from "./adapters";
 import { CacheClient, CacheEntryType } from "./cache-client";
 import {
     CacheProvider,
@@ -17,6 +17,7 @@ export {
     unwrapNestedPromise,
     InMemoryCacheAdapter,
     LocalStorageCacheAdapter,
+    IndexedDBCacheAdapter,
     CacheClient,
 };
 export type {

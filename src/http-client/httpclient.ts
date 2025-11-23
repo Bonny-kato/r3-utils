@@ -25,6 +25,22 @@ export interface ExtendedAxiosInstance extends Omit<AxiosInstance, "defaults"> {
 }
 
 /**
+ * Configuration options for request retry behavior
+ */
+export interface RetryConfig {
+    /** Maximum number of retry attempts */
+    maxRetries?: number;
+    /** Initial delay in milliseconds before first retry */
+    retryDelay?: number;
+    /** Whether to use exponential backoff for retry delays */
+    exponentialBackoff?: boolean;
+    /** HTTP status codes that should trigger a retry */
+    retryableStatuses?: number[];
+    /** Function to determine if an error should trigger a retry */
+    shouldRetry?: (error: unknown, attemptNumber: number) => boolean;
+}
+
+/**
  * Configuration options for initializing the HttpClient
  */
 export interface HttpRequestConfig<TBody = unknown>
@@ -33,6 +49,10 @@ export interface HttpRequestConfig<TBody = unknown>
     baseUrl?: BaseUrl;
     /** Whether to log request details to the console */
     logRequests?: boolean;
+    /** Retry configuration for failed requests */
+    retry?: RetryConfig;
+    /** Enable request deduplication to prevent duplicate in-flight requests */
+    enableDeduplication?: boolean;
 }
 
 /**
@@ -61,6 +81,7 @@ type RequestInterceptorOptions = {
 export class HttpClient {
     #globalConfig: HttpRequestConfig;
     #axios: AxiosInstance;
+    #inFlightRequests: Map<string, Promise<unknown>> = new Map();
 
     /**
      * Creates a new HttpClient instance
@@ -248,6 +269,97 @@ export class HttpClient {
         } satisfies AxiosRequestConfig;
     };
 
+    #generateRequestKey = (config: AxiosRequestConfig): string => {
+        const { method, url, baseURL, params, data } = config;
+        return JSON.stringify({ method, url, baseURL, params, data });
+    };
+
+    #sleep = (ms: number): Promise<void> => {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    };
+
+    #shouldRetryRequest = (
+        error: unknown,
+        attemptNumber: number,
+        retryConfig?: RetryConfig
+    ): boolean => {
+        if (!retryConfig || attemptNumber >= (retryConfig.maxRetries ?? 0)) {
+            return false;
+        }
+
+        if (retryConfig.shouldRetry) {
+            return retryConfig.shouldRetry(error, attemptNumber);
+        }
+
+        if (axios.isAxiosError(error)) {
+            const status = error.response?.status;
+            if (status) {
+                const retryableStatuses = retryConfig.retryableStatuses ?? [
+                    408, 429, 500, 502, 503, 504,
+                ];
+                return retryableStatuses.includes(status);
+            }
+            return !error.response;
+        }
+
+        return false;
+    };
+
+    #getRetryDelay = (
+        attemptNumber: number,
+        retryConfig?: RetryConfig
+    ): number => {
+        const baseDelay = retryConfig?.retryDelay ?? 1000;
+        if (retryConfig?.exponentialBackoff) {
+            return baseDelay * Math.pow(2, attemptNumber - 1);
+        }
+        return baseDelay;
+    };
+
+    async #executeWithRetry<TResponse>(
+        executor: () => Promise<TResponse>,
+        retryConfig?: RetryConfig
+    ): Promise<TResponse> {
+        let lastError: unknown;
+        const maxAttempts = (retryConfig?.maxRetries ?? 0) + 1;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return await executor();
+            } catch (error) {
+                lastError = error;
+                if (
+                    attempt < maxAttempts &&
+                    this.#shouldRetryRequest(error, attempt, retryConfig)
+                ) {
+                    const delay = this.#getRetryDelay(attempt, retryConfig);
+                    await this.#sleep(delay);
+                    continue;
+                }
+                throw error;
+            }
+        }
+
+        throw lastError;
+    }
+
+    async #executeWithDeduplication<TResponse>(
+        requestKey: string,
+        executor: () => Promise<TResponse>
+    ): Promise<TResponse> {
+        const existingRequest = this.#inFlightRequests.get(requestKey);
+        if (existingRequest) {
+            return existingRequest as Promise<TResponse>;
+        }
+
+        const requestPromise = executor().finally(() => {
+            this.#inFlightRequests.delete(requestKey);
+        });
+
+        this.#inFlightRequests.set(requestKey, requestPromise);
+        return requestPromise;
+    }
+
     /**
      * Makes an HTTP request with the given configuration
      * @returns Promise resolving to [error, response] tuple
@@ -258,12 +370,26 @@ export class HttpClient {
         TError extends ErrorType = ErrorType,
     >(requestConfig: RequestConfig<TBody>) {
         const config = this.#mergeConfig<TBody>(requestConfig);
+        const retryConfig = this.#globalConfig.retry;
+        const enableDeduplication =
+            this.#globalConfig.enableDeduplication ?? false;
 
-        return tryCatchHttp<TResponse, TError>(async () => {
+        const executor = async (): Promise<TResponse> => {
             this.#logRequest(config);
             const response: AxiosResponse<TResponse> =
                 await this.#axios.request<TResponse>(config);
             return response.data;
+        };
+
+        return tryCatchHttp<TResponse, TError>(async () => {
+            if (enableDeduplication && config.method?.toUpperCase() === "GET") {
+                const requestKey = this.#generateRequestKey(config);
+                return this.#executeWithDeduplication(requestKey, () =>
+                    this.#executeWithRetry(executor, retryConfig)
+                );
+            }
+
+            return this.#executeWithRetry(executor, retryConfig);
         })();
     }
 }
