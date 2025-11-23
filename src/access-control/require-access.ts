@@ -114,7 +114,5 @@ export const requireAccess = <T extends AuthUser>(
         throwCustomError(unauthorizedErrorMessage, 403);
     }
 
-    throwError({ message: "ddkd", status: 400 });
-
     return user;
 };
