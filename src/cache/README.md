@@ -6,7 +6,7 @@ The Cache module provides a flexible and powerful caching solution for React app
 
 ## Features
 
-- Flexible storage adapters (in-memory and localStorage)
+- Flexible storage adapters (in-memory, localStorage, and IndexedDB)
 - Automatic cache expiration with configurable TTL (Time To Live)
 - React hooks for easy integration with components
 - Event-based cache invalidation
@@ -186,6 +186,26 @@ function App() {
 }
 ```
 
+### Using IndexedDB Adapter for Large Data Storage
+
+For storing larger amounts of data or when localStorage size limits are a concern, use the IndexedDB adapter. This adapter provides asynchronous storage with much larger capacity than localStorage.
+
+```typescript
+import { CacheClient, CacheProvider, IndexedDBCacheAdapter } from 'r3-utils/cache';
+
+const cacheClient = new CacheClient(new IndexedDBCacheAdapter('my-app-cache'));
+
+function App() {
+  return (
+    <CacheProvider cacheClient={cacheClient}>
+      <YourApp />
+    </CacheProvider>
+  );
+}
+```
+
+Note: The IndexedDB adapter provides async methods like `hasAsync()`, `getAsync()`, `setAsync()`, `deleteAsync()`, and `valuesAsync()` in addition to the synchronous CacheAdapter interface methods. The synchronous methods throw errors and should not be used directly. The CacheClient handles this internally.
+
 ### Custom Cache Entry with TTL
 
 ```typescript
@@ -219,7 +239,7 @@ function DataManager() {
 
 ## Best Practices
 
-1. **Choose the Right Adapter**: Use `InMemoryCacheAdapter` for temporary data and `LocalStorageCacheAdapter` for data that should persist across page refreshes.
+1. **Choose the Right Adapter**: Use `InMemoryCacheAdapter` for temporary data, `LocalStorageCacheAdapter` for data that should persist across page refreshes with moderate storage needs, and `IndexedDBCacheAdapter` for large datasets or when localStorage size limits are a concern.
 
 2. **Set Appropriate TTL Values**: Consider the volatility of your data when setting TTL values. Frequently changing data should have shorter TTL values.
 

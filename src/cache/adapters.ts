@@ -1,6 +1,8 @@
 import { type CacheEntryType } from './cache-client';
 import { ExtendedLocalStorage as LocalStorage } from '../utils/local-storage';
 
+export { IndexedDBCacheAdapter } from './indexed-db-cache.adapter';
+
 /**
  * Interface for cache adapters that provide storage functionality for the cache system.
  *

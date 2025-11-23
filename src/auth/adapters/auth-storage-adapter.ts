@@ -93,4 +93,25 @@ export interface AuthStorageAdapter<TUser extends UserIdentifier> {
      * Clear the active-session association for a user (e.g., on logout).
      */
     removeUserSession(userId: UserId): Promise<TryCatchResult<boolean>>;
+
+    /**
+     * Get all session IDs associated with a user.
+     */
+    getAllUserSessions(userId: UserId): Promise<TryCatchResult<string[]>>;
+
+    /**
+     * Add a session ID to the user's session list.
+     */
+    addUserSessionToList(
+        userId: UserId,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>>;
+
+    /**
+     * Remove a session ID from the user's session list.
+     */
+    removeUserSessionFromList(
+        userId: UserId,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>>;
 }

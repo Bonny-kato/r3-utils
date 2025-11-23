@@ -535,12 +535,6 @@ it:
 
 > Important: You need to be using react-router ^7.0.0 to use this module.
 
-## Known Issues
-
-- As of now, single session works correctly when enabled from the beginning. However, if it was previously multi-session
-  and you enable single session, the previous sessions will not be removed—only new ones. This will be fixed in the
-  future.
-
 ## Best Practices
 
 1. **Secure Cookies**: Always use `httpOnly` and `secure` (in production) for your cookies to prevent XSS attacks.

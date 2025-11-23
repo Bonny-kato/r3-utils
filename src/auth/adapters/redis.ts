@@ -161,6 +161,35 @@ export class RedisStorageAdapter<User extends UserIdentifier>
         });
     }
 
+    getAllUserSessions(userId: string): Promise<TryCatchResult<string[]>> {
+        return tryCatch(async () => {
+            const sessions = await this.#redisClient.smembers(
+                `user_sessions:${userId}`
+            );
+            return sessions || [];
+        });
+    }
+
+    addUserSessionToList(
+        userId: string,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            await this.#redisClient.sadd(`user_sessions:${userId}`, sessionId);
+            return true;
+        });
+    }
+
+    removeUserSessionFromList(
+        userId: string,
+        sessionId: string
+    ): Promise<TryCatchResult<boolean>> {
+        return tryCatch(async () => {
+            await this.#redisClient.srem(`user_sessions:${userId}`, sessionId);
+            return true;
+        });
+    }
+
     /**
      * Removes a user from storage.
      *
@@ -178,8 +207,16 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                 userId: String(sessionId),
             });
             try {
+                const [getErr, sessionData] = await this.get(sessionId);
                 const userKey = this.generateSessionDataIdentifier(sessionId);
                 const result = await this.#redisClient.del(userKey);
+
+                if (!getErr && sessionData?.user) {
+                    await this.removeUserSessionFromList(
+                        String(sessionData.user.id),
+                        sessionId
+                    );
+                }
 
                 const duration = this.#loggingConfig.logTiming
                     ? Date.now() - startTime
@@ -360,6 +397,11 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     this.generateSessionDataIdentifier(sessionId),
                     ttl,
                     serializedSessionData
+                );
+
+                await this.#redisClient.sadd(
+                    `user_sessions:${String(data.id)}`,
+                    sessionId
                 );
 
                 const duration = this.#loggingConfig.logTiming

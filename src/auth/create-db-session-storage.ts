@@ -70,21 +70,22 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
 
             const user = data as never as User;
             if (enableSingleSession) {
-                // 1️⃣ Check if a user has an existing active session
-                const [getUserSessionError, existingSessionId] =
-                    await storageAdapter.getUserActiveSession(user.id);
+                // 1️⃣ Get all existing sessions for this user
+                const [getAllSessionsError, existingSessionIds] =
+                    await storageAdapter.getAllUserSessions(user.id);
 
-                if (getUserSessionError) {
+                if (getAllSessionsError) {
                     return throwError({
-                        message: getUserSessionError.message,
+                        message: getAllSessionsError.message,
                         status: HTTP_INTERNAL_SERVER_ERROR,
                     });
                 }
 
-                // 2️⃣If they do, invalidate the old session
-                if (existingSessionId) {
-                    // Todo: handle error there
-                    await storageAdapter.remove(existingSessionId);
+                // 2️⃣ If they have any existing sessions, remove them all
+                if (existingSessionIds && existingSessionIds.length > 0) {
+                    for (const sessionId of existingSessionIds) {
+                        await storageAdapter.remove(sessionId);
+                    }
                     await storageAdapter.removeUserSession(user.id);
                 }
             }
