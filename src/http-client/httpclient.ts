@@ -1,160 +1,269 @@
-import axios, { AxiosResponse } from "axios";
-import { checkIsDevMode } from "../utils";
-import { tryCatchHttp } from "./try-catch-http";
+import axios, {
+    AxiosInstance,
+    AxiosRequestConfig,
+    AxiosResponse,
+    Method as HttpMethod,
+    InternalAxiosRequestConfig,
+} from "axios";
+import { ErrorType, tryCatchHttp } from "./try-catch-http";
 
-/**
- * HTTP methods supported by the HttpClient
- */
-type HttpMethod = "get" | "post" | "put" | "patch" | "delete";
+export type BaseUrl = `https://${string}` | `http://${string}`;
+export type Endpoint = `/${string}` | `${BaseUrl}/${string}`;
 
-/**
- * Configuration object for HTTP requests
- */
-interface RequestConfig {
-    /** HTTP method to use */
-    method: HttpMethod;
-    /** Full URL including base URL and endpoint */
-    url: string;
-    /** Request headers */
-    headers: {
-        /** Authorization header with Bearer token */
-        Authorization: string;
-        /** Content type header, set automatically based on the data type */
-        "Content-Type"?: "application/json" | "multipart/form-data";
+type OnRequestFulfilled<TBody = unknown> = (
+    config: InternalAxiosRequestConfig<TBody>
+) =>
+    | InternalAxiosRequestConfig<TBody>
+    | Promise<InternalAxiosRequestConfig<TBody>>;
+
+type OnRequestRejected = (error: unknown) => never;
+
+export interface ExtendedAxiosInstance extends Omit<AxiosInstance, "defaults"> {
+    defaults: AxiosInstance["defaults"] & {
+        logRequests?: boolean;
     };
-    /** Request body data */
-    data: undefined | object | FormData;
 }
 
 /**
- * HttpClient class for making API requests
- *
- * This class provides a simple interface for making HTTP requests to a REST API.
- * It handles authentication, error handling, and request configuration.
+ * Configuration options for initializing the HttpClient
  */
-export class HttpClient {
-    /**
-     * Makes a GET request to the specified endpoint
-     *
-     * @param endpoint - The API endpoint to call (e.g., "/users")
-     * @param token - Optional authentication token
-     * @returns A promise that resolves to a tuple of [error, data]
-     */
-    get = tryCatchHttp(async <T = any>(endpoint: string, token?: string): Promise<T> => {
-        return this.request<T>("get", endpoint, undefined, token);
-    });
-    /**
-     * Makes a POST request to the specified endpoint
-     *
-     * @param endpoint - The API endpoint to call
-     * @param data - The data to send with the request
-     * @param token - Optional authentication token
-     * @returns A promise that resolves to a tuple of [error, data]
-     */
-    post = tryCatchHttp(
-        async <T = any>(endpoint: string, data: object, token?: string): Promise<T> => {
-            return this.request<T>("post", endpoint, data, token);
-        }
-    );
-    /**
-     * Makes a DELETE request to the specified endpoint
-     *
-     * @param endpoint - The API endpoint to call
-     * @param token - Optional authentication token
-     * @returns A promise that resolves to a tuple of [error, data]
-     */
-    delete = tryCatchHttp(async <T = any>(endpoint: string, token?: string): Promise<T> => {
-        return this.request<T>("delete", endpoint, undefined, token);
-    });
-    /**
-     * Makes a PUT request to the specified endpoint
-     *
-     * @param endpoint - The API endpoint to call
-     * @param data - The data to send with the request
-     * @param token - Optional authentication token
-     * @returns A promise that resolves to a tuple of [error, data]
-     */
-    put = tryCatchHttp(
-        async <T = any>(endpoint: string, data: object, token?: string): Promise<T> => {
-            return this.request<T>("put", endpoint, data, token);
-        }
-    );
-    /**
-     * Makes a PATCH request to the specified endpoint
-     *
-     * @param endpoint - The API endpoint to call
-     * @param data - The data to send with the request
-     * @param token - Optional authentication token
-     * @returns A promise that resolves to a tuple of [error, data]
-     */
-    patch = tryCatchHttp(
-        async <T = any>(endpoint: string, data: object, token?: string): Promise<T> => {
-            return this.request<T>("patch", endpoint, data, token);
-        }
-    );
+export interface HttpRequestConfig<TBody = unknown>
+    extends Omit<AxiosRequestConfig<TBody>, "method" | "url" | "baseURL"> {
     /** Base URL for all API requests */
-    private readonly baseUrl: string;
+    baseUrl?: BaseUrl;
+    /** Whether to log request details to the console */
+    logRequests?: boolean;
+}
+
+/**
+ * Configuration options for individual HTTP method requests
+ */
+type HttpMethodRequestConfig<TBody = unknown> = Partial<
+    Omit<HttpRequestConfig<TBody>, "logRequests">
+>;
+
+/**
+ * Internal request configuration options
+ */
+interface RequestConfig<TBody = unknown>
+    extends HttpMethodRequestConfig<TBody> {
+    /** API endpoint path */
+    endpoint: Endpoint;
+    /** HTTP method */
+    method: HttpMethod;
+}
+
+type RequestInterceptorOptions = {
+    runWhen?: (config: InternalAxiosRequestConfig) => boolean; // Also update this
+    synchronous?: boolean;
+};
+
+export class HttpClient {
+    #globalConfig: HttpRequestConfig;
+    #axios: AxiosInstance;
 
     /**
      * Creates a new HttpClient instance
-     *
-     * @param baseUrl - The base URL for all API requests (e.g., "https://api.example.com/v1")
+     * @param config - Client configuration options
      */
-    constructor(baseUrl: string) {
-        this.baseUrl = baseUrl;
+    constructor(config: HttpRequestConfig) {
+        this.#globalConfig = config;
+
+        // Dedicated axios instance per client
+        const { baseUrl, headers, ...rest } = config;
+        this.#axios = axios.create({
+            baseURL: baseUrl,
+            headers,
+            ...rest,
+        });
     }
 
     /**
-     * Makes an HTTP request to the specified endpoint
+     * DO NOT USE
      *
-     * @param method - The HTTP method to use
-     * @param endpoint - The API endpoint to call
-     * @param data - Optional data to send with the request
-     * @param token - Optional authentication token
-     * @returns The response data from the API
+     * Exposes the internal axios instance for testing purposes
+     * @internal - This should only be used for testing
      */
-    private async request<T>(
-        method: HttpMethod,
-        endpoint: string,
-        data?: object,
-        token?: string
-    ): Promise<T> {
-        const isDevMode = checkIsDevMode();
+    get axiosInstance(): AxiosInstance {
+        return this.#axios;
+    }
 
-        const config: RequestConfig = {
-            method,
-            url: this.baseUrl + endpoint,
+    /**
+     * Simple public API for interceptors
+     * Returns an unsubscribe function to eject the interceptor.
+     */
+    onRequest(
+        fulfilled: OnRequestFulfilled,
+        rejected?: OnRequestRejected,
+        options?: RequestInterceptorOptions
+    ): () => void {
+        const id = this.#axios.interceptors.request.use(
+            fulfilled,
+            rejected,
+            options
+        );
+        return () => this.#axios.interceptors.request.eject(id);
+    }
+
+    onResponse(
+        fulfilled: (
+            response: AxiosResponse
+        ) => AxiosResponse | Promise<AxiosResponse>,
+        rejected?: (error: unknown) => never
+    ): () => void {
+        const id = this.#axios.interceptors.response.use(fulfilled, rejected);
+        return () => this.#axios.interceptors.response.eject(id);
+    }
+
+    /**
+     * Makes a POST request to the specified endpoint
+     * @returns Tuple of [error, response]
+     */
+    post = async <
+        TResponse,
+        TBody = unknown,
+        TError extends ErrorType = ErrorType,
+    >(
+        endpoint: Endpoint,
+        body: TBody,
+        config?: HttpMethodRequestConfig<TBody>
+    ) => {
+        return this.#request<TResponse, TBody, TError>({
+            data: body,
+            endpoint,
+            ...config,
+            method: "POST",
+        });
+    };
+
+    /**
+     * Makes a DELETE request to the specified endpoint
+     * @returns Tuple of [error, response]
+     */
+    delete = async <TResponse, TError extends ErrorType = ErrorType>(
+        endpoint: Endpoint,
+        config?: HttpMethodRequestConfig
+    ) => {
+        return this.#request<TResponse, unknown, TError>({
+            endpoint,
+            method: "DELETE",
+            ...config,
+        });
+    };
+
+    /**
+     * Makes a PUT request to the specified endpoint
+     * @returns Tuple of [error, response]
+     */
+    put = async <
+        TResponse,
+        TBody = unknown,
+        TError extends ErrorType = ErrorType,
+    >(
+        endpoint: Endpoint,
+        body: TBody,
+        config?: HttpMethodRequestConfig<TBody>
+    ) => {
+        return this.#request<TResponse, TBody, TError>({
+            data: body,
+            endpoint,
+            method: "PUT",
+            ...config,
+        });
+    };
+
+    /**
+     * Makes a PATCH request to the specified endpoint
+     * @returns Tuple of [error, response]
+     */
+    patch = async <
+        TResponse,
+        TBody = unknown,
+        TError extends ErrorType = ErrorType,
+    >(
+        endpoint: Endpoint,
+        body: TBody,
+        config?: HttpMethodRequestConfig<TBody>
+    ) => {
+        return this.#request<TResponse, TBody, TError>({
+            data: body,
+            endpoint,
+            method: "PATCH",
+            ...config,
+        });
+    };
+
+    /**
+     * Makes a GET request to the specified endpoint
+     * @returns Tuple of [error, response]
+     */
+    get = async <TResponse, TError extends ErrorType = ErrorType>(
+        endpoint: Endpoint,
+        config?: HttpMethodRequestConfig
+    ) => {
+        return this.#request<TResponse, unknown, TError>({
+            ...config,
+            endpoint,
+            method: "GET",
+        });
+    };
+
+    /**
+     * Logs request details if logging is enabled
+     */
+    #logRequest = (config: AxiosRequestConfig) => {
+        if (this.#globalConfig.logRequests) {
+            console.log(config);
+        }
+    };
+
+    #mergeConfig = <TBody = unknown>({
+        baseUrl,
+        endpoint,
+        method,
+        headers,
+        ...otherProps
+    }: RequestConfig<TBody>) => {
+        const {
+            baseUrl: globalUrl,
+            headers: globalHeader,
+            ...otherGlobalConfig
+        } = this.#globalConfig;
+
+        const effectiveBaseURL = baseUrl ?? globalUrl;
+
+        const isAbsolute =
+            endpoint.startsWith("http://") || endpoint.startsWith("https://");
+
+        return {
+            ...otherGlobalConfig,
+            ...otherProps,
+            baseURL: isAbsolute ? undefined : effectiveBaseURL,
             headers: {
-                Authorization: token ? `Bearer ${token}` : "",
+                ...globalHeader,
+                ...headers,
             },
-            data: undefined,
-        };
+            method,
+            url: endpoint, // use relative endpoint; baseURL handles the prefix
+        } satisfies AxiosRequestConfig;
+    };
 
-        if (data) {
-            config.data = data;
+    /**
+     * Makes an HTTP request with the given configuration
+     * @returns Promise resolving to [error, response] tuple
+     */
+    async #request<
+        TResponse,
+        TBody = unknown,
+        TError extends ErrorType = ErrorType,
+    >(requestConfig: RequestConfig<TBody>) {
+        const config = this.#mergeConfig<TBody>(requestConfig);
 
-            // Set content type based on data type
-            if (data instanceof FormData) {
-                config.headers["Content-Type"] = "multipart/form-data";
-            } else {
-                config.headers["Content-Type"] = "application/json";
-            }
-
-            // Log request data in development mode only
-            if (isDevMode) {
-                console.debug("[Request Data]:", data);
-            }
-        }
-
-        // Log request details in development mode only
-        if (isDevMode) {
-            console.debug(`[${method.toUpperCase()}] ${config.url}`);
-            if (token) {
-                console.debug("[Auth] Token present");
-            }
-        }
-
-        const response: AxiosResponse<T> = await axios(config);
-        return response.data;
+        return tryCatchHttp<TResponse, TError>(async () => {
+            this.#logRequest(config);
+            const response: AxiosResponse<TResponse> =
+                await this.#axios.request<TResponse>(config);
+            return response.data;
+        })();
     }
 }

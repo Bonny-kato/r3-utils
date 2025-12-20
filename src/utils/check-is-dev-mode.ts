@@ -1,18 +1,19 @@
-/// <reference types="vite/client" />
-
 import * as process from "node:process";
 
 /**
- * Checks if the current environment is a development environment.
+ * Checks if the current environment is a development environment by examining
+ * the NODE_ENV environment variable. This is used throughout the application
+ * to enable development-only features like logging, debugging, and validation.
  *
- * @returns {boolean} True if in development mode, false otherwise
+ * @returns {boolean} True if NODE_ENV is set to "development", false otherwise
+ * or if NODE_ENV is not defined
  */
 export const checkIsDevMode = (): boolean => {
-    if (typeof process !== "undefined" && process.env?.NODE_ENV) {
-        return process.env?.NODE_ENV === "development";
+    // Check Node.js environment
+    if (typeof process !== "undefined" && process.env && process.env.NODE_ENV) {
+        return process.env.NODE_ENV === "development";
     }
-    if (typeof import.meta.env !== "undefined") {
-        return import.meta.env.DEV;
-    }
-    return false; // Fallback for unknown environments
+
+    // Fallback for unknown environments
+    return false;
 };

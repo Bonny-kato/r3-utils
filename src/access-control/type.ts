@@ -5,6 +5,8 @@
  * and permission-based access control in applications.
  */
 
+import { ErrorType } from "~/http-client/try-catch-http";
+
 /**
  * Interface representing a user role with associated permissions.
  *
@@ -44,19 +46,13 @@ export interface UserRole {
  */
 export interface AuthUser {
     /** Unique identifier for the user */
-    id: string;
+    id: string | number;
 
     /**
      * The roles assigned to the user.
      * Each role has a name and associated permissions.
      */
     roles: UserRole[];
-
-    /**
-     * Additional user properties can be added through extension
-     * or using the index signature.
-     */
-    [key: string]: any;
 }
 
 /**
@@ -79,8 +75,11 @@ export type AuthUserWithoutRoles<T extends AuthUser> = Omit<T, "roles">;
  *   isActive: true
  * };
  * ```
+ *
  */
-export type UserAttribute<T extends AuthUser = AuthUser> = Partial<AuthUserWithoutRoles<T>>;
+export type UserAttribute<T extends AuthUser = AuthUser> = Partial<
+    AuthUserWithoutRoles<T>
+>;
 
 /**
  * Extracts the possible role names from a user type.
@@ -98,7 +97,8 @@ export type RoleNames<T extends AuthUser> = T["roles"][number]["name"];
  *
  * @template T - Type that extends AuthUser
  */
-export type AllPermissions<T extends AuthUser> = T["roles"][number]["permissions"][number];
+export type AllPermissions<T extends AuthUser> =
+    T["roles"][number]["permissions"][number];
 
 /**
  * Creates a union type of all unique permission strings from a user type.
@@ -112,6 +112,92 @@ export type AllPermissions<T extends AuthUser> = T["roles"][number]["permissions
  */
 export type UniquePermissions<T extends AuthUser> =
     AllPermissions<T> extends infer P ? (P extends string ? P : never) : never;
+
+/** Options for access control checks */
+export type AccessCheckOptions = {
+    /** If true, all items in the list must match. If false (default), at least one must match.
+     *
+     * @default false
+     * */
+    requireAll?: boolean;
+    /** If true, access is granted only if the condition is NOT met.
+     *
+     * @default false
+     * */
+    not?: boolean;
+};
+
+/** A normalized access requirement that enforces consistent validation logic */
+
+/**
+ * Configuration for a single access requirement list.
+ *
+ * This type is used to provide fine‑grained control over how
+ * roles, permissions, or attributes are evaluated.
+ */
+export interface AccessRequirement<T> extends AccessCheckOptions {
+    /**
+     * The list of items to validate against the current user context.
+     */
+    list: T[];
+}
+
+/**
+ * Attribute-specific requirement that allows using a single attribute object
+ * instead of an array. This improves ergonomics for attribute checks while
+ * remaining compatible with the internal normalization which converts it to
+ * an array.
+ */
+export interface AttributeRequirement<T extends AuthUser = AuthUser>
+    extends AccessCheckOptions {
+    /** canonical */
+    criteria: UserAttribute<T>;
+}
+
+/**
+ * A predicate function that receives user attributes and returns
+ * a boolean indicating whether access should be granted.
+ *
+ * This enables dynamic, conditional checks that simple value matching cannot handle,
+ * such as age restrictions, date-based access, numeric thresholds, and complex business logic.
+ *
+ * @template T - Type that extends AuthUser
+ *
+ * @example
+ * ```typescript
+ * // Age restriction
+ * const isAdult: AttributePredicate<AppUser> = (user) => user.age >= 18;
+ *
+ * // Date-based access
+ * const hasValidSubscription: AttributePredicate<AppUser> = (user) =>
+ *   new Date(user.subscriptionExpiry) > new Date();
+ *
+ * // Complex business logic
+ * const isSeniorEngineer: AttributePredicate<AppUser> = (user) =>
+ *   user.department === "engineering" && user.yearsOfExperience >= 5;
+ * ```
+ */
+export type AttributePredicate<T extends AuthUser = AuthUser> = (
+    userAttributes: Required<UserAttribute<T>>
+) => boolean;
+
+type NeverAllProps<T> = {
+    [K in keyof T]?: never;
+};
+
+/**
+ * A plain attribute object with an explicit ban on requirement keys.
+ *
+ * This helps TypeScript discriminate between:
+ * - a direct `UserAttribute` object (no control keys), and
+ * - an `AttributeRequirement`/`AccessRequirement` object (has control keys like
+ *   `requireAll`/`not` and a `list`/`criteria`).
+ *
+ * If any of these keys are present, the type will no longer match the plain
+ * attribute shape, nudging TS to interpret the value as a requirement object.
+ */
+export type PlainUserAttribute<T extends AuthUser = AuthUser> =
+    UserAttribute<T> & NeverAllProps<AttributeRequirement<T>>;
 
 /**
  * Interface for specifying access control requirements.
@@ -133,20 +219,54 @@ export interface UserAccessControl<T extends AuthUser = AuthUser> {
     /**
      * List of roles that are allowed access.
      * If provided, the user must have at least one of these roles.
+     *
+     * The simple array format is kept for backward compatibility.
+     * For new code, prefer using {@link AccessRequirement} to
+     * configure per‑requirement options like `requireAll` and `not`.
      */
-    roles?: RoleNames<T>[];
+    roles?: RoleNames<T>[] | AccessRequirement<RoleNames<T>>;
 
     /**
      * List of permissions required for access.
-     * If provided, the user must have all of these permissions.
+     * If provided, the user must have at least one of these permissions
+     * by default.
+     *
+     * The simple array format is kept for backward compatibility.
+     * For new code, prefer using {@link AccessRequirement} to
+     * configure per‑requirement options like `requireAll` and `not`.
      */
-    permissions?: UniquePermissions<T>[];
+    permissions?:
+        | UniquePermissions<T>[]
+        | AccessRequirement<UniquePermissions<T>>;
 
     /**
      * Additional attributes required for access.
-     * If provided, the user must match all of these attributes.
+     * If provided, the user must match the configured attributes.
+     *
+     * Supports three mutually exclusive formats:
+     * 1. **Plain attribute object** - Simple exact value matching (backward compatible)
+     * 2. **AttributeRequirement** - Criteria object with `requireAll`/`not` options
+     * 3. **AttributePredicate** - Function for dynamic checks (e.g., age >= 18)
+     *
+     * When using a predicate function, no additional options apply - the function
+     * has full control over the access decision.
+     *
+     * @example
+     * ```ts
+     * // Plain attribute (exact match)
+     * attributes: { department: 'engineering' }
+     *
+     * // Criteria with options
+     * attributes: { criteria: { isActive: true }, requireAll: true }
+     *
+     * // Predicate function (full control)
+     * attributes: (user) => user.age >= 18
+     * ```
      */
-    attributes?: UserAttribute<T>;
+    attributes?:
+        | PlainUserAttribute<T>
+        | AttributeRequirement<T>
+        | AttributePredicate<T>;
 }
 
 /**
@@ -174,10 +294,69 @@ export interface AccessControlConfig<T extends AuthUser = AuthUser> {
     userRoles: RoleNames<T>[];
 }
 
-export interface ActionErrorType<T = unknown> {
-    /** Optional data associated with the error */
-    data?: T;
+/**
+ * Interface for action error types with optional data and error message.
+ * Used for standardized error handling in access control operations.
+ *
+ * @template T - Type of the optional data associated with the error
+ */
+export type ActionErrorType<
+    TPayload = unknown,
+    TError extends ErrorType = ErrorType,
+> = [error: TError, payload: TPayload];
+/**
+ * Configuration options for controlling strictness in access control checks.
+ * When set to true, the corresponding check requires ALL conditions to be met.
+ * When set to false or undefined, only ONE condition needs to be met.
+ *
+ * @deprecated Deprecated. Use `requireAll` inside the specific access
+ * property (roles, permissions, or attributes) instead.
+ *
+ * @example
+ * ```typescript
+ * const strictOptions: AccessControlStrictnessOptions = {
+ *   roles: true,        // User must have ALL required roles
+ *   permissions: false, // User needs at least ONE required permission
+ *   attributes: true    // User must match ALL required attributes
+ * };
+ * ```
+ */
+export type AccessControlStrictnessOptions = {
+    /** If true, user must have ALL required attributes. If false, user needs at least ONE. */
+    attributes?: boolean;
+    /** If true, user must have ALL required permissions. If false, user needs at least ONE. */
+    permissions?: boolean;
+    /** If true, user must have ALL required roles. If false, user needs at least ONE. */
+    roles?: boolean;
+};
 
-    /** Descriptive error message providing details about the error */
-    errorMessage?: string;
-}
+/**
+ * Options for the requireAccess function to customize access control behavior.
+ *
+ * @example
+ * ```typescript
+ * const options: RequireAccessOptions = {
+ *   strictness: { roles: true, permissions: false },
+ *   unauthorizedErrorMessage: 'Access denied: insufficient privileges'
+ * };
+ * ```
+ */
+export type RequireAccessOptions = {
+    /**
+     * Strictness configuration for different access control types.
+     *
+     * @deprecated Deprecated. Use `requireAll` inside the specific access
+     * property (roles, permissions, or attributes) instead.
+     */
+    strictness?: AccessControlStrictnessOptions;
+    /** Custom error message to display when access is denied */
+    unauthorizedErrorMessage?: string;
+};
+
+/**
+ * Type for the generateUserAccessControlConfig function
+ * Allows consumers to provide their own user type that extends AuthUser
+ */
+export type GenerateAccessControlConfigFunc<T extends AuthUser> = (
+    user?: T
+) => AccessControlConfig<T>;

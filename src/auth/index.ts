@@ -1,7 +1,8 @@
-export { JsonStorageAdapter, RedisStorageAdapter } from "./adapters";
-export { Auth } from "./auth";
+export { RedisStorageAdapter } from "./adapters";
 export type {
     AuthStorageAdapter,
     UserId,
     UserIdentifier,
-} from "./auth-storage-adpter";
+} from "./adapters/auth-storage-adapter";
+export { Auth } from "./auth";
+export * from "./types";

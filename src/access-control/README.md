@@ -9,7 +9,8 @@ access control are RBAC (Role-Based Access Control) and ABAC (Attribute-Based Ac
 
 ### Role-Based Access Control (RBAC)
 
-In this form of access control, user's access is managed based on their roles. For example, only administrators may view
+In this form of access control, a user's access is managed based on their roles. For example, only administrators may
+view
 settings, or only HR personnel can view staff details. This approach is straightforward to implement but has limitations
 regarding flexibility. For instance, consider a scenario with two administrators from separate locations, each needing
 to manage users within their location. Achieving this with RBAC alone could be challenging, if not impossible.
@@ -20,83 +21,109 @@ ABAC offers more flexibility by enabling you to specify access controls based on
 might include roles but can also encompass factors like the user's department, access time, location, or any other user
 or environmental characteristics.
 
-## Motivation
+## Features
 
-I was tasked with implementing access control in a Remix application that needed to control user access based on roles,
-permissions, and attributes such as user types. I needed a solution compatible in both server and browser environments
-since Remix is a full-stack framework. After exploring existing npm solutions, I came
-across [react-abac](https://www.npmjs.com/package/react-abac). However, this package seemed limited to client-side use
-and didn't suit my API preferences. As a result, I developed a comprehensive suite that operates efficiently in both
-environments with a simple yet robust API. Enough background; let me walk you through my implementation.
+- Strongly typed, generic APIs. Most functions now accept a generic T extends AuthUser for end-to-end type safety.
+- Built-in react component, context, and hooks for managing access control.
+- Exported low-level utilities for extending access control.
+- Works with both client and server-side.
+- Supports both ABAC and RBAC.
+- Support negation access control via `not` property.
+- Supports strictness checks via `requireAll` property
+- **Predicate functions for dynamic attribute checks** (e.g., age >= 18, date-based access, numeric thresholds)
+- Built-in support for menus and tabs.
+- Self-documented, easy to understand, and extend.
+- Factory function (`createAccessControl`) to generate type-safe hooks, components, and helpers bound to your
+  app-specific user type
 
-## API
+## APIs
 
-The access control suite includes the following APIs:
+### Low-level utilities
 
-### Access Control Utilities
+These utilities determine whether an authenticated user meets specific conditions (roles, permissions, attributes), are
+used internally to power other APIs, and can also be useful when you need to extend access control functionality to
+suit your specific use case.
 
-These are a set of utilities that determine whether an authenticated user meets specific conditions to be considered
-authorized. Each utility is self-documented and intended to provide clear understanding of its functionality.
+#### hasRole
 
-```typescript
-// app/provider/access-control-utils.ts
-import { AuthUserSchemaWithRoleType } from "~/api/login/auth-user-schema";
+A low-level utility that checks if a user has a specific role. It accepts three parameters: array of `userRoles`, array
+of `requiredRoles`, and `options` of type `AccessCheckOptions`
 
-/**
- * Checks if the user possesses any of the specified roles.
- *
- * @param {string[]} userRoles - The roles assigned to the user.
- * @param {string[]} requiredRoles - The roles to validate against.
- * @returns {boolean} - True if the user holds any of the required roles, false otherwise.
- */
-export const hasRole = (userRoles: string[], requiredRoles: string[]) => {
-    return requiredRoles.some((role) => userRoles.includes(role));
-};
+Example
 
-/**
- * Validates if the user holds any of the necessary permissions.
- *
- * @param {string[]} userPermissions - The permissions assigned to the user.
- * @param {string[]} requiredPermissions - The permissions to validate against.
- * @returns {boolean} - True if the user possesses any of the required permissions, false otherwise.
- */
-export const hasPermission = (
-    userPermissions: string[],
-    requiredPermissions: string[]
-): boolean => {
-    return requiredPermissions.some((permission) =>
-        userPermissions.includes(permission)
-    );
-};
+```ts
+import { hasRole } from "r3-utils/access-control";
 
-/**
- * Represents user attributes as a record with generic key and value types.
- */
-export type UserAttribute = Partial<
-    Omit<AuthUserSchemaWithRoleType["data"], "role" | "token" | "id">
-> &
-    Record<string, boolean | number | string>;
+const userRoles = ["admin"];
+hasRole<AppUser>(userRoles, ["admin"]); // true
 
-/**
- * Validates if the user possesses the specified attributes.
- *
- * @param {UserAttribute} userAttributes - The attributes assigned to the user.
- * @param {UserAttribute} requiredAttributes - The attributes to validate against.
- * @returns {boolean} - True if the user possesses all the required attributes, false otherwise.
- */
-export const hasAttribute = (
-    userAttributes: UserAttribute,
-    requiredAttributes: UserAttribute
-): boolean => {
-    return Object.keys(requiredAttributes).every(
-        (key) => userAttributes[key] === requiredAttributes[key]
-    );
-};
+// with options
+const userRoles2 = ["viewer"];
+hasRole<AppUser>(userRoles2, ["admin", "editor"], { requireAll: true, not: true }); // false since user does not have any of the roles
+
+// legacy options with strictness check
+const userRoles3 = ["admin"];
+hasRole<AppUser>(userRoles3, ["admin", "editor"], false); // true since user has any of the roles
 ```
 
-**Note**
-Ensure correct authentication user type based on your project. Here, the auth user type is `AuthUserSchemaWithRoleType`,
-provided to the `UserAttribute` type to ensure type-safety when defining user attributes.
+#### hasPermission
+
+A low-level utility that checks if a user has a specific permission. It accepts three parameters: array of
+`userPermissions`, array of `requiredPermissions`, and `options` of type `AccessCheckOptions`
+
+Example
+
+```ts
+import { hasPermission } from "r3-utils/access-control";
+
+const userPermissions = ["create:user", "delete:products"];
+hasPermission<AppUser>(userPermissions, ["create:user"]); // true
+
+// with options
+const userPermissions2 = ["delete:users"];
+hasPermission<AppUser>(userPermissions2, userPermissions, { requireAll: true, not: true }); // false since user does not have any of the permissions   
+
+// legacy options with strictness check
+const userPermissions3 = ["can:edit-user", "can:delete-user"];
+hasPermission<AppUser>(userPermissions3, ["can:delete-user", "can:create-products"], false); // true since user has any of the permissions   
+```
+
+#### hasAttribute
+
+A low-level utility that checks if a user has specific attributes. It accepts three parameters: `userAttributes` object,
+`requiredAttributes` (object or predicate function), and `options` of type `AccessCheckOptions`.
+
+**Supports three formats for `requiredAttributes`:**
+
+1. **Plain attribute object** - Simple exact value matching
+2. **Predicate function** – Dynamic checks for complex logic (e.g., age >= 18)
+
+Example
+
+```ts
+import { hasAttribute } from "r3-utils/access-control";
+
+const userAttributes = { age: 25, department: "engineering", isActive: true };
+
+// Simple exact match
+hasAttribute(userAttributes, { department: "engineering" }); // true
+
+// With options
+hasAttribute(userAttributes, { department: "engineering", isActive: true }, { requireAll: true }); // true
+
+// Predicate function for dynamic checks
+hasAttribute(userAttributes, (user) => user.age >= 18); // true
+hasAttribute(userAttributes, (user) => user.age >= 30); // false
+
+// Complex business logic with predicate
+hasAttribute(userAttributes, (user) =>
+    user.department === "engineering" && user.age >= 21
+); // true
+```
+
+**Note:** When using a predicate function, the `options` parameter should not be provided; otherwise, you'll get a type
+error. The predicate has full control over the access decision, so features like `not` or `requireAll` should be handled
+within the predicate itself.
 
 ### generateUserAccessControlConfig
 
@@ -108,40 +135,32 @@ modification based on your auth user structure; the rest of the API works out of
 functionality.
 
 ```typescript
-import { AuthUserSchemaWithRoleType } from "~/api/login/auth-user-schema";
-import { UserAttribute } from "~/providers/access-control/access-control-helpers";
-import { AccessControlConfig } from "~/providers/access-control/access-control-provider";
-import { SexType } from "~/utils/zod-common";
+import {
+    generateUserAccessControlConfig,
+    type AuthUser,
+    type AccessControlConfig,
+    type UserAttribute,
+} from "r3-utils/access-control";
 
-/**
- * Generates the access control configuration for a user based on their roles, permissions, and attributes.
- *
- * @param {Omit<AuthUserType, "token">} authUser - The authenticated user's information excluding the token.
- * @returns {AccessControlConfig} The user's access control configuration, which includes roles, permissions, and attributes.
- */
-export const generateUserAccessControlConfig = (
-    authUser?: AuthUserSchemaWithRoleType["data"]
-): AccessControlConfig => {
-    const userRoles = authUser
-        ? authUser.role.map((role) => role.name.toLowerCase())
-        : [];
+// Define your application's user shape extending AuthUser
+interface AppUser extends AuthUser {
+    name: string;
+    department?: string;
+    isActive?: boolean;
+}
 
-    const userAttributes: UserAttribute = {
-        sex: authUser?.sex as SexType,
-    };
-
-    const userPermissions = authUser
-        ? authUser.role.flatMap((role) =>
-            role.permissions.map((permission) => permission.toLowerCase())
-        )
-        : [];
-
-    return {
-        userAttributes,
-        userPermissions,
-        userRoles,
-    };
-};
+// Example usage
+const config: AccessControlConfig<AppUser> = generateUserAccessControlConfig<AppUser>({
+    id: "123",
+    name: "Jane",
+    department: "engineering",
+    roles: [
+        { name: "ADMIN", permissions: ["read:users", "write:users"] },
+        { name: "EDITOR", permissions: ["read:posts", "write:posts"] },
+    ],
+});
+// userRoles are normalized to role names, userPermissions flatten role permissions,
+// userAttributes contains all non-roles user fields.
 ```
 
 ### AccessControlProvider
@@ -150,41 +169,24 @@ This is a React context provider that encapsulates your app, providing authentic
 control functionalities. It also includes a hook to access this context throughout your application.
 
 ```typescript
-import { createContext, FC, ReactNode, useContext } from "react";
-import { UserAttribute } from "~/providers/access-control/access-control-helpers";
+import {
+    AccessControlProvider,
+    useAccessControl,
+    generateUserAccessControlConfig,
+    type AuthUser,
+} from "r3-utils/access-control";
 
-export interface AccessControlConfig {
-    userPermissions: string[];
-    userAttributes: UserAttribute;
-    userRoles: string[];
+interface AppUser extends AuthUser {
+    name: string
 }
 
-const AccessControlContext = createContext<AccessControlConfig | null>(null);
-
-export const AccessControlProvider: FC<{
-    accessControlConfig: AccessControlConfig;
-    children: ReactNode;
-}> = ({ accessControlConfig, children }) => {
+export const AppRoot = ({ user, children }: { user?: AppUser; children: React.ReactNode }) => {
+    const accessConfig = generateUserAccessControlConfig<AppUser>(user);
     return (
-        <AccessControlContext.Provider value={accessControlConfig}>
-            {children}
-        </AccessControlContext.Provider>
+        <AccessControlProvider<AppUser> accessControlConfig = { accessConfig } >
+            { children }
+            < /AccessControlProvider>
     );
-};
-
-/**
- * Custom hook to access the AccessControlContext.
- *
- * @throws Will throw an error if used outside of an AccessControlProvider.
- * @returns {AccessControlConfig} - The access control configuration.
- */
-export const useAccessControl = () => {
-    const context = useContext(AccessControlContext);
-    if (!context)
-        throw new Error(
-            "useAccessControl should be used inside AccessControlProvider"
-        );
-    return context;
 };
 ```
 
@@ -193,18 +195,7 @@ export const useAccessControl = () => {
 Wrap your entire application with the `AccessControlProvider` to enable access control capabilities within your app.
 
 ```typescript
-export const AuthLayout: FC<{
-    children: ReactNode;
-    authUser?: AuthUserSchemaWithRoleType["data"];
-}> = ({ children, authUser }) => {
-
-    const accessControlConfig = generateUserAccessControlConfig(authUser);
-    return (
-        <AccessControlProvider accessControlConfig={accessControlConfig}>
-            {children}
-        </AccessControlProvider>
-    );
-};
+// Wrap your app with AccessControlProvider and pass generateUserAccessControlConfig(user)
 ```
 
 ### useAccessControl
@@ -220,13 +211,8 @@ checking which permissions, roles, and attributes an auth user has.
 const MyComponent = () => {
     const { userRoles, userPermissions, userAttributes } = useAccessControl();
     console.log(userRoles, userPermissions, userAttributes);
-
-    return (
-        <div>
-            {/* The rest of your code */}
-        </div>
-    )
-}
+    return <div / >;
+};
 ```
 
 ### useHasAccess
@@ -235,32 +221,17 @@ This hook determines if a user has access based on a provided access control con
 JavaScript environments where a React component isn't employed or when creating/extending custom access control.
 
 ```typescript
-/**
- * Custom hook to determine if the user has the specified roles, permissions, or attributes.
- *
- * @param {Object} props - The properties object.
- * @param {string[]} [props.roles=[]] - The roles to verify against the user's roles.
- * @param {string[]} [props.permissions=[]] - The permissions to check against the user's permissions.
- * @param {UserAttribute} [props.attributes={}] - The attributes to validate against the user's attributes.
- * @returns {boolean} - Returns true if the user has the required access, false otherwise.
- */
-export const useHasAccess = (
-    {
-         roles = [],
-         permissions = [],
-         attributes = {},
-     }: UserAccessControl): boolean => {
-    
-        const { userRoles, userPermissions, userAttributes } = useAccessControl();
+import { useHasAccess, type AuthUser } from "r3-utils/access-control";
 
-        return (
-            (roles.length === 0 || hasRole(userRoles, roles)) &&
-            (permissions.length === 0 ||
-                hasPermission(userPermissions, permissions)) &&
-            (Object.keys(attributes).length === 0 ||
-                hasAttribute(userAttributes, attributes))
-        );
-    };
+interface AppUser extends AuthUser {
+    department?: string
+}
+
+const canEditUser = useHasAccess<AppUser>({
+    roles: ["admin"],
+    permissions: ["can-edit-user"],
+    attributes: { department: "people" },
+});
 ```
 
 #### Usage
@@ -271,20 +242,24 @@ export const useHasAccess = (
 const UserDetails = () => {
     // It's not mandatory to pass all props; even one, e.g., to check just role, you can simply pass role
     const canEditUser = useHasAccess({
-        roles: ["admin"], 
+        roles: ["admin"],
         permissions: ["can-edit-user"],
         attributes: { location: "Dar es Salaam" }
     });
 
     return (
         <div>
-            {canEditUser && (
-                <button>Edit User</button>
-            )}
-            {/* The rest of your code */}
-        </div>
-    )
+            { canEditUser && (
+            <button>Edit
+    User < /button>
+)
 }
+    {/* The rest of your code */
+    }
+    </div>
+)
+    ;
+};
 ```
 
 ##### Example 2 (Extending Functionality)
@@ -292,16 +267,15 @@ const UserDetails = () => {
 ```typescript
 const useQueryData = (url, options) => {
     const [data, setData] = useState();
-    const enabled  = useHasAccess(options.accessControl);
-    
+    const enabled = useHasAccess(options.accessControl);
+
     const fetchData = async () => {
         // ...
         try {
             const res = await fetch(url);
             const _data = await res.json();
             setData(_data);
-        }
-        catch (e) {
+        } catch (e) {
             console.log("error", e);
         }
     };
@@ -309,7 +283,7 @@ const useQueryData = (url, options) => {
     useEffect(() => {
         if (enabled) fetchData();
     }, [options]);
-    
+
     return data;
 };
 
@@ -326,123 +300,119 @@ the children by default, which is handy when you are not yet established on the 
 supports, so you can wrap your component without providing anything, and it will still render.
 
 ```typescript
-import { FC, ReactNode } from "react";
-import {
-    hasAttribute,
-    hasPermission,
-    hasRole,
-} from "~/providers/access-control/access-control-helpers";
-import { useAccessControl } from "~/providers/access-control/access-control-provider";
-import { UserAccessControl } from "~/providers/access-control/use-has-access";
+import { AccessControl } from "r3-utils/access-control";
 
-interface Props extends UserAccessControl {
-    children: ReactNode;
-    fallback?: ReactNode;
+// Passing all props is not mandatory
+<AccessControl
+    roles = { ["admin"] }
+permissions = { ["can-edit-user"] }
+attributes = {
+{
+    department: "people"
 }
-
-const AccessControl: FC<Props> = ({
-    roles = [],
-    permissions = [],
-    attributes = {},
-    children,
-    fallback = null,
-}) => {
-    const {
-        userRoles,
-        userPermissions,
-        userAttributes,
-    } = useAccessControl();
-
-    const isAuthorized =
-        (roles.length === 0 || hasRole(userRoles, roles)) &&
-        (permissions.length === 0 ||
-            hasPermission(userPermissions, permissions)) &&
-        (Object.keys(attributes).length === 0 ||
-            hasAttribute(userAttributes, attributes));
-
-    return isAuthorized ? children : fallback;
-};
-
-export default AccessControl;
+}
+>
+<button>Edit
+User < /button>
+{/* ... */
+}
+</AccessControl>
 ```
 
 #### Usage
 
 ```typescript
 const UserDetails = () => {
-
     return (
         <div>
-            {/* Passing all props is not mandatory; e.g., if you want to check just role, then you can pass just role */}
-            <AccessControl
-                roles={["admin"]} 
-                permissions={["can-edit-user"]} 
-                attributes={{ location: "Dar es Salaam" }}
-            >
-                <button>Edit User</button>
-            </AccessControl>
-            
-            {/* The rest of your code */}
-        </div>
-    )
+            {/* Passing all props is not mandatory; e.g., if you want to check just role, then you can pass just role */ }
+        < AccessControl
+    roles = { ["admin"] }
+    permissions = { ["can-edit-user"] }
+    attributes = {
+    {
+        location: "Dar es Salaam"
+    }
 }
+>
+    <button>Edit
+    User < /button>
+    < /AccessControl>
+
+    {/* The rest of your code */
+    }
+    </div>
+)
+    ;
+};
 ```
 
-### requireAccess
+#### Using Predicate Functions
 
-A Remix-specific utility function that runs on the server to authorize user access to certain routes. Unlike other APIs
-that require just access control config of the type UserAccessControl, this function also requires a `request` object to
-access auth user information. It can be used to protect routes and will throw an unauthorized error if the user isn't
-authorized. The error will be caught in the nearest error boundary.
+You can use predicate functions for dynamic attribute checks with both `AccessControl` component and `useHasAccess`
+hook:
+
+```tsx
+// Age restriction with AccessControl component
+<AccessControl attributes={(user) => user.age >= 18}>
+    <AdultOnlyContent />
+</AccessControl>
+
+// Complex business logic
+<AccessControl
+    roles={["employee"]}
+    attributes={(user) => user.department === "engineering" && user.yearsOfExperience >= 5}
+>
+    <SeniorEngineerDashboard />
+</AccessControl>
+
+// With useHasAccess hook
+const canAccessPremium = useHasAccess({
+    attributes: (user) => {
+        const now = new Date();
+        const expiry = new Date(user.subscriptionExpiry);
+        return expiry > now && user.tier === "premium";
+    }
+});
+
+// Date-based access
+const isWithinBusinessHours = useHasAccess({
+    attributes: () => {
+        const hour = new Date().getHours();
+        return hour >= 9 && hour <= 17;
+    }
+});
+```
+
+### requireAccess and checkAccess (server-friendly)
+
+Use these on the server (or anywhere outside React) to validate access. checkAccess returns a boolean; requireAccess
+throws when unauthorized.
 
 ```typescript
-import { AuthUserSchemaWithRoleType } from "~/api/login/auth-user-schema";
 import {
-    hasAttribute,
-    hasPermission,
-    hasRole,
-} from "~/providers/access-control/access-control-helpers";
-import { generateUserAccessControlConfig } from "~/providers/access-control/generate-user-access-control-config";
-import { UserAccessControl } from "~/providers/access-control/use-has-access";
-import { throwUnauthorizedError } from "~/utils/request.server";
-import { requireUser } from "~/utils/session.server";
+    checkAccess,
+    requireAccess,
+    generateUserAccessControlConfig,
+    type AuthUser,
+    type UserAccessControl,
+} from "r3-utils/access-control";
 
-/**
- * Verifies that the requesting user has the necessary access based on roles, permissions, and attributes.
- *
- * @param {Request} request - The incoming request object.
- * @param {Object} userAccessControl - Access control requirements.
- * @param {string[]} [userAccessControl.roles=[]] - List of roles that are allowed access.
- * @param {string[]} [userAccessControl.permissions=[]] - List of permissions required for access.
- * @param {Object} [userAccessControl.attributes={}] - Additional attributes required for access.
- *
- * @returns {Promise<AuthUserType>} The authenticated user object if access is granted.
- *
- * @throws Will throw UnauthorizedError if the user doesn't have the necessary access.
- */
-export const requireAccess = async (
-    request: Request,
-    { roles = [], permissions = [], attributes = {} }: UserAccessControl
-): Promise<AuthUserSchemaWithRoleType["data"]> => {
-    //⬇️ Custom utility to retrieve auth user info from cookie; you can provide your own implementation
-    const authUser = await requireUser(request);
+interface AppUser extends AuthUser {
+    department?: string
+}
 
-    // ⬇️ The same function used to generate access control config on the client
-    const { userRoles, userPermissions, userAttributes } =
-        generateUserAccessControlConfig(authUser); 
+// Example: Express/Remix/Next action handler
+function handleCreateUser(currentUser: AppUser) {
+    requireAccess<AppUser>(currentUser, {
+        permissions: ["create:users"],
+        attributes: { department: "people" },
+    });
+    // proceed…
+}
 
-    const hasAccess =
-        (roles.length === 0 || hasRole(userRoles, roles)) &&
-        (permissions.length === 0 ||
-            hasPermission(userPermissions, permissions)) &&
-        (Object.keys(attributes).length === 0 ||
-            hasAttribute(userAttributes, attributes));
-
-    //⬇️ Custom utility to throw unauthorized response; you can make it just as simple as returning `json({ message }, { status: 403 });`
-    if (!hasAccess) throwUnauthorizedError();
-
-    return authUser;
-};
+// If you only need a boolean
+const canRead = checkAccess<AppUser>(currentUser, { permissions: ["read:users"] });
 ```
 
 That's all! These are the APIs you need to manage access control in a React/Remix application confidently. What I find
@@ -457,91 +427,38 @@ A self-documented utility function that helps manage menu or tab access based on
 
 ```typescript
 import {
-    hasAttribute,
-    hasPermission,
-    hasRole,
-} from "~/providers/access-control/access-control-helpers";
-import { AccessControlConfig } from "~/providers/access-control/access-control-provider";
-import { UserAccessControl } from "~/providers/access-control/use-has-access";
+    generateMenuAccess,
+    useAccessControl,
+    type MenuConfig,
+    type AuthUser,
+} from "r3-utils/access-control";
 
-type MenuItemConfig = {
-    accessControl: UserAccessControl;
-    link: string;
-};
+type SettingsMenu = "dashboard" | "zones" | "branches";
 
-type MenuItemAccess = {
-    hasAccess: boolean;
-    link: string;
-};
+interface AppUser extends AuthUser {
+    department?: string
+}
 
-export type MenuConfig<T extends string> = Record<T, MenuItemConfig[]>;
-
-const checkRequiredAccess = (
-    accessControlConfig: AccessControlConfig,
-    { roles = [], permissions = [], attributes = {} }: UserAccessControl
-) => {
-    const { userPermissions, userAttributes, userRoles } = accessControlConfig;
-
-    return (
-        (roles.length === 0 || hasRole(userRoles, roles)) &&
-        (permissions.length === 0 ||
-            hasPermission(userPermissions, permissions)) &&
-        (Object.keys(attributes).length === 0 ||
-            hasAttribute(userAttributes, attributes))
-    );
-};
-
-/**
- * Determines the accessibility of menu items based on the user's access control configuration.
- *
- * @param {AccessControlConfig} accessControlConfig - The access control settings for the user, including permissions, attributes, and roles.
- * @param {MenuItemConfig[]} menuAccessConfigs - Array of menu item configurations that define access control requirements.
- * @returns {MenuItemAccess} - An object containing access status and the link of an accessible menu item if available.
- */
-const getMenuAccess = (
-    accessControlConfig: AccessControlConfig,
-    menuAccessConfigs: MenuItemConfig[]
-): MenuItemAccess => {
-    const accessibleMenuItem = menuAccessConfigs.find(({ accessControl }) =>
-        checkRequiredAccess(accessControlConfig, accessControl)
-    );
-
-    return {
-        hasAccess: !!accessibleMenuItem,
-        link: accessibleMenuItem ? accessibleMenuItem.link : "",
+const useManageSettingsMenus = () => {
+    const menuConfig: MenuConfig<SettingsMenu, AppUser> = {
+        dashboard: [
+            { accessControl: { roles: ["admin"] }, link: "/settings/admin" },
+            { accessControl: { roles: ["hr"] }, link: "/settings/hr" },
+        ],
+        zones: [{ accessControl: {}, link: "/settings/zones" }],
+        branches: [{ accessControl: {}, link: "/settings/branches" }],
     };
-};
 
-/**
- * Generates a record of menu item access based on the provided access control and menu configurations.
- *
- * @param {AccessControlConfig} accessControlConfig - Configuration object that defines access control rules.
- * @param {MenuConfig<T>} menuConfig - Configuration object that defines the menu structure and items.
- * @returns {Record<T, MenuItemAccess>} A record where each key corresponds to a menu item and the value represents access details for that item.
- * @template T - A generic type parameter that extends string, representing the keys in the menu configuration.
- */
-export const generateMenuAccess = <T extends string>(
-    accessControlConfig: AccessControlConfig,
-    menuConfig: MenuConfig<T>
-): Record<T, MenuItemAccess> => {
-    return Object.entries(menuConfig).reduce(
-        (acc, [key, configs]) => {
-            acc[key as T] = getMenuAccess(
-                accessControlConfig,
-                configs as MenuItemConfig[]
-            );
-            return acc;
-        },
-        {} as Record<T, MenuItemAccess>
-    );
+    const access = useAccessControl<AppUser>();
+    const accessMap = generateMenuAccess<SettingsMenu, AppUser>(access, menuConfig);
+    return accessMap;
 };
-
 ```
 
 #### Usage
 
 ```typescript
-import { MenuConfig } from "~/providers/access-control/generate-menu-access-control";
+import { MenuConfig } from "r3-utils/access-control";
 
 export const SETTINGS_BASE_URL = "/dashboard/settings";
 
@@ -552,7 +469,7 @@ type SettingsMenuType =
 
 
 const useManageSettingsMenus = () => {
-     const settingsMenuConfig: MenuConfig<SettingsMenuType> = {
+    const settingsMenuConfig: MenuConfig<SettingsMenuType> = {
         dashboard: [
             {
                 accessControl: {
@@ -581,30 +498,34 @@ const useManageSettingsMenus = () => {
         accessControlConfig,
         settingsMenuConfig
     );
-    
+
     return [
         ...addObjectIfConditionMet(settingsAccess.dashboard.hasAccess, {
             name: "Dashboard",
-            url: settingsAccess.userProfile.link!,
+            url: settingsAccess.dashboard.link!,
         }),
         // Other menus
     ];
-}
+};
 
 // settings/layout.tsx
 const SettingLayout = () => {
     const settingsMenus = useManageSettingsMenus();
     return (
         <>
-        {/* Other layouts */}
-            <div>
-                {settingsMenus.map((menu) => (
-                    <SettingMenu key={menu.name} menu={menu} />
-                ))}
-            </div>
-        </>
-    )
+            {/* Other layouts */ }
+        < div >
+        {
+            settingsMenus.map((menu) => (
+                <SettingMenu key = { menu.name } menu = { menu }
+    />
+))
 }
+    </div>
+    < />
+)
+    ;
+};
 ```
 
 #### Explanation
@@ -621,8 +542,3 @@ dashboard menu from the sidebar, justifying why each menu/tab features an array 
 
 Thank you for reading this far. Hopefully, it will be useful and save you some hours. If you have any suggestions or
 questions, feel free to comment below.
-
-### Special Thanks
-
-Thank you [Jerry Lussato](https://github.com/jerrylusato), [Joseph Makwaya](https://github.com/astrojose),
-and [Jackon Twalipo](https://github.com/twalipo) for contributing to this.

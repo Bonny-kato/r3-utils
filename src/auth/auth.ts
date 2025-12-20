@@ -1,80 +1,76 @@
-import { createCookieSessionStorage, SessionIdStorageStrategy } from "react-router";
-import { safeRedirect } from "../utils";
-import { JsonStorageAdapter } from "./adapters/json";
-import { AuthStorageAdapter, UserId, UserIdentifier } from "./auth-storage-adpter";
+import { redirect, SessionStorage } from "react-router";
+import { UserIdentifier } from "~/auth/adapters/auth-storage-adapter";
+import {
+    createAuthStorage,
+    DbSessionStorageError,
+} from "~/auth/create-db-session-storage";
+import { AuthOptions } from "~/auth/types";
+import {
+    HTTP_FOUND,
+    HTTP_INTERNAL_SERVER_ERROR,
+} from "~/http-client/status-code";
+import { safeRedirect, throwError, tryCatch, typedKeys } from "~/utils";
+import { isNotEmpty } from "~/utils/is-not-empty";
 
 /**
- * Options for cookie-based session storage.
- * Borrowed from React Router source code.
- */
-interface CookieSessionStorageOptions {
-    /**
-     * The Cookie used to store the session data on the client, or options used
-     * to automatically create one.
-     */
-    cookie?: SessionIdStorageStrategy["cookie"];
-}
-
-/**
- * Configuration options for the Auth class.
- */
-interface AuthOptions<User extends UserIdentifier> {
-    storageAdapter?: AuthStorageAdapter<User>;
-    collectionName?: string;
-    /** Cookie configuration for session storage */
-    cookie: CookieSessionStorageOptions["cookie"];
-
-    /** Custom URL for the login page (defaults to "/login") */
-    loginPageUrl?: string;
-    /** Custom URL for the logout page (defaults to "/logout") */
-    logoutPageUrl?: string;
-}
-
-/**
- * Authentication utility class for managing user sessions.
+ * Authentication utility for managing user sessions.
  *
- * Provides methods for user login, logout, session management,
- * and authentication verification.
+ * Provides helpers for login, logout, session updates, and guards that enforce authentication.
+ *
+ * @typeParam User - Your application user type; must include an `id` field.
+ *
+ *
+ * Example
+ * ```ts
+ * import { Auth } from "~/auth/auth";
+ * import type { AuthOptions } from "~/auth/types";
+ *
+ * type AppUser = { id: string; email: string };
+ *
+ * const auth = new Auth<AppUser>({
+ *   cookie: { name: "__session", secrets: [env.SECRET!], path: "/" }
+ * });
+ *
+ * // In an action/loader:
+ * const isAuthed = await auth.isAuthenticated(request);
+ * ```
  */
 export class Auth<User extends UserIdentifier> {
     /** Session storage instance for managing cookies */
-    readonly sessionStorage: ReturnType<typeof createCookieSessionStorage<{ userId: UserId }>>;
-    #storageAdapter: AuthStorageAdapter<User>;
+    readonly sessionStorage: SessionStorage<User, User>;
     /** URL path for the login page */
     readonly #loginPageUrl: string = "/login";
-    /** URL path for the logout page */
-    readonly #logoutPageUrl: string = "/logout";
 
     /**
-     * Creates a new Auth instance.
+     * Create a new `Auth` instance.
      *
-     * @param options - Configuration options for authentication
+     * @param options - Auth configuration including cookie settings and storage strategy.
      */
     constructor(options: AuthOptions<User>) {
-        this.sessionStorage = createCookieSessionStorage<{ userId: UserId }>({
-            cookie: options.cookie,
-        });
+        this.sessionStorage = createAuthStorage(options);
         this.#loginPageUrl = options.loginPageUrl ?? this.#loginPageUrl;
-        this.#logoutPageUrl = options.logoutPageUrl ?? this.#logoutPageUrl;
-
-        this.#storageAdapter =
-            options.storageAdapter ??
-            new JsonStorageAdapter<User>(options?.collectionName ?? "auth_users");
     }
 
     /**
-     * Logs in a user and redirects to the specified URL.
+     * Log in a user, persist their data in the session, and redirect.
      *
-     * @param user - The authenticated user data
-     * @param redirectTo - URL to redirect after successful login
-     * @returns A redirect response with the session cookie
+     * @param user - The authenticated user data to store in the session.
+     * @param redirectTo - Absolute or relative URL to redirect after login.
+     * @returns A redirect `Response` with the `Set-Cookie` header applied.
+     *
+     * Example
+     * ```ts
+     * const user = { id: "u_1", email: "a@b.c" } as const;
+     * return auth.loginAndRedirect(user, "/dashboard");
+     * ```
      */
     async loginAndRedirect(user: User, redirectTo: string): Promise<Response> {
         const session = await this.sessionStorage.getSession();
 
-        session.set("userId", user.id);
-        await this.#storageAdapter.set(user.id, user);
-
+        const userProps = typedKeys(user);
+        for (const prop of userProps) {
+            session.set(prop, user[prop]);
+        }
         return safeRedirect(redirectTo, {
             headers: {
                 "Set-Cookie": await this.sessionStorage.commitSession(session),
@@ -83,125 +79,183 @@ export class Auth<User extends UserIdentifier> {
     }
 
     /**
-     * Updates a user's session and redirects to the specified URL.
+     * Update the current session with the latest user fields without redirecting.
      *
-     * @param request - The current request
-     * @param user - Updated user data
-     * @param redirectTo - URL to redirect after session update
-     * @returns A redirect response with the updated session cookie
+     * @param request - The incoming request containing the current session cookie.
+     * @param user - The updated user object; its fields will be merged into the session.
+     * @returns `ResponseInit` with a `Set-Cookie` header; spread this into your own response.
+     *
+     * Example
+     * ```ts
+     * // In an action: update profile then refresh cookie
+     * const updated = await updateUserFromForm(request);
+     * const headers = await auth.updateSession(request, updated); // ResponseInit
+     * return json({ ok: true }, headers);
+     * ```
      */
-    async updateSessionAndRedirect(
+    async updateSession(request: Request, user: User): Promise<ResponseInit>;
+    /**
+     * Update the session and redirect in a single step.
+     *
+     * @param request - The incoming request containing the current session cookie.
+     * @param user - The updated user object; its fields will be merged into the session.
+     * @param redirectTo - Where to redirect after the session cookie has been updated.
+     * @returns A redirect `Response` with the `Set-Cookie` header.
+     *
+     * Example
+     * ```ts
+     * // After changing the user's role, redirect to their dashboard with fresh cookie
+     * const updated = await makeUserAdmin(request);
+     * return auth.updateSession(request, updated, "/dashboard");
+     * ```
+     */
+    async updateSession(
         request: Request,
         user: User,
         redirectTo: string
-    ): Promise<Response> {
-        const session = await this.getSession(request);
+    ): Promise<Response>;
+    /**
+     * Implementation for the `updateSession` overloads. When `redirectTo` is provided,
+     * updates the session and returns a redirect `Response`; otherwise returns `ResponseInit`
+     * with `Set-Cookie` headers you can spread into your own response.
+     *
+     * @throws Redirects to the login page when no valid session exists or the session was invalidated.
+     */
+    async updateSession(
+        request: Request,
+        user: User,
+        redirectTo?: string
+    ): Promise<Response | ResponseInit> {
+        const session = await this.#getSession(request);
 
-        await this.sessionStorage.destroySession(session);
-        await this.#storageAdapter.set(user.id, user);
+        if (!session) {
+            return this.#throwRedirectToLoginPage(
+                request,
+                redirectTo ?? new URL(request.url).pathname
+            );
+        }
 
-        return this.loginAndRedirect(user, redirectTo);
+        const userProps = typedKeys(user);
+        for (const prop of userProps) {
+            session.set(prop, user[prop]);
+        }
+
+        const responseHeaders = {
+            headers: {
+                "Set-Cookie": await this.sessionStorage.commitSession(session),
+            },
+        };
+
+        if (redirectTo) {
+            return safeRedirect(redirectTo, responseHeaders);
+        }
+
+        return responseHeaders;
     }
 
     /**
-     * Retrieves the session from a request.
+     * Determine whether the incoming request has an authenticated session.
      *
-     * @param request - The current request
-     * @returns The session associated with the request
+     * @param request - The incoming request containing the session cookie.
+     * @returns `true` when a valid user `id` is present in the session; otherwise `false`.
      */
-    getSession(request: Request) {
-        return this.sessionStorage.getSession(request.headers.get("Cookie"));
-    }
-
-    /**
-     * Extracts the user ID from the session.
-     *
-     * @param request - The current request
-     * @returns The user ID if present, null otherwise
-     */
-    async getUserId(request: Request): Promise<string | null> {
-        const session = await this.getSession(request);
-        const userId = session.get("userId") as string | undefined;
-
-        return userId || null;
+    async isAuthenticated(request: Request): Promise<boolean> {
+        const session = await this.#getSession(request);
+        const id = session?.get?.("id");
+        return typeof id === "string" || typeof id === "number";
     }
 
     /**
      * Ensures a user is authenticated or redirects to the login page.
      *
      * @param request - The current request
-     * @param redirectTo - URL to redirect to after login (defaults to current path)
+     * @param redirectTo - URL to redirect to after login (defaults to the current path)
      * @returns The authenticated user data
      * @throws Redirects to login page if user is not authenticated
      */
     requireUserOrRedirect = async (
         request: Request,
         redirectTo: string = new URL(request.url).pathname
-    ) => {
-        const userId = await this.getUserId(request);
+    ): Promise<User> => {
+        const session = await this.#getSession(request);
 
-        if (!userId) this.#throwRedirect(redirectTo);
-        const user = await this.#storageAdapter.get(userId);
+        if (isNotEmpty(session?.data)) {
+            return session.data as never as User;
+        }
 
-        if (!user) this.#throwRedirect(redirectTo);
-
-        return user;
+        return this.#throwRedirectToLoginPage(request, redirectTo);
     };
 
     /**
-     * Logs out the current user.
+     * Logs out the current user, clears their session, and redirects to the specified URL.
      *
-     * @param request - The current request
-     * @returns A redirect response to the logout page
+     * @param {Request} request - The incoming client request object, containing session and user information.
+     * @param {string} [redirectUrl] - Optional URL to redirect to after logout. If not provided, redirects to the login page.
+     * @returns {Promise<Response>} A response object containing the redirection and updated headers with the destroyed session cookie.
      */
-    async logout(request: Request): Promise<Response> {
-        const session = await this.getSession(request);
-        const userId = await this.getUserId(request);
+    async logoutAndRedirect(
+        request: Request,
+        redirectUrl?: string
+    ): Promise<Response> {
+        const headers = await this.#clearSession(request);
+        return redirect(redirectUrl ?? this.#loginPageUrl, headers);
+    }
 
-        if (userId) {
-            await this.#storageAdapter.remove(userId);
+    async #getSession(request: Request) {
+        const [error, session] = await tryCatch(
+            this.sessionStorage.getSession(request.headers.get("Cookie"))
+        );
+
+        if (error instanceof DbSessionStorageError) {
+            if (error.status === HTTP_FOUND) {
+                const redirectTo = new URL(request.url).pathname;
+
+                return this.#throwRedirectToLoginPage(
+                    request,
+                    redirectTo,
+                    error.message
+                );
+            }
+            return throwError({
+                message: error.message,
+                status: HTTP_INTERNAL_SERVER_ERROR,
+            });
         }
 
-        return safeRedirect(this.#loginPageUrl, {
+        return session;
+    }
+
+    #clearSession = async (request: Request) => {
+        const [err, session] = await tryCatch(
+            this.sessionStorage.getSession(request.headers.get("Cookie"))
+        );
+        // If we cannot get a session, default to a blank one so we can set a past-dated cookie safely.
+        const safeSession =
+            err || !session ? await this.sessionStorage.getSession() : session;
+        return {
             headers: {
-                "Set-Cookie": await this.sessionStorage.destroySession(session),
+                "Set-Cookie":
+                    await this.sessionStorage.destroySession(safeSession),
             },
-        });
-    }
-
-    /**
-     * Retrieves the token of the authenticated user.
-     * User this function if auth user has token property
-     *
-     * @param request - The request object
-     * @returns A promise that resolves to the token of the authenticated user
-     * @throws Redirects to login page if user is not authenticated
-     */
-    async requireToken(request: Request): Promise<string> {
-        const user = await this.requireUserOrRedirect(request);
-        return user?.token ?? "";
-    }
-
-    /**
-     * Gets the user ID if the user is authenticated, or null otherwise.
-     *
-     * @param request - The current request
-     * @returns The user ID if authenticated, null otherwise
-     */
-    async getUserIdOrNull(request: Request): Promise<string | null> {
-        return this.getUserId(request);
-    }
-
-    async getAuthUsers(request: Request) {
-        await this.requireUserOrRedirect(request);
-        return await this.#storageAdapter.getAll();
-    }
+        };
+    };
 
     /**
      * Helper function to generate a redirect URL and throw the redirect.
      */
-    #throwRedirect(redirectTo: string): never {
+    async #throwRedirectToLoginPage(
+        request: Request,
+        redirectTo: string,
+        message?: string
+    ): Promise<never> {
+        //⬇️ Just to be sure we clear the session before redirecting
+        const headers = await this.#clearSession(request);
+
+        if (message) {
+            console.error(message);
+        }
         const searchParams = new URLSearchParams([["redirectTo", redirectTo]]);
-        throw safeRedirect(`${this.#loginPageUrl}?${searchParams}`);
+
+        throw redirect(`${this.#loginPageUrl}?${searchParams}`, headers);
     }
 }
