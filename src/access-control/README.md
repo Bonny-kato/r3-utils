@@ -121,8 +121,9 @@ hasAttribute(userAttributes, (user) =>
 ); // true
 ```
 
-**Note:** When using a predicate function, the `options` parameter is ignored. The predicate has full control over the
-access decision, so features like `not` or `requireAll` should be handled within the predicate itself.
+**Note:** When using a predicate function, the `options` parameter should not be provided; otherwise, you'll get a type
+error. The predicate has full control over the access decision, so features like `not` or `requireAll` should be handled
+within the predicate itself.
 
 ### generateUserAccessControlConfig
 
