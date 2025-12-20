@@ -1,10 +1,33 @@
+import { z } from "zod";
 import {
     AccessControlConfig,
     AuthUser,
-    RoleNames,
     UniquePermissions,
     UserAttribute,
 } from "./type";
+
+// ----------------------------------------------------------------------
+//  auth user object schema
+// ----------------------------------------------------------------------
+
+const UserRoleSchema = z.object(
+    {
+        name: z.string(),
+        permissions: z.array(z.string()),
+    },
+    { message: "Invalid role definition" }
+);
+
+const AuthUserSchema = z
+    .object({
+        roles: z.array(UserRoleSchema, {
+            message:
+                "user roles must be an array of objects with name and permissions properties",
+        }),
+    })
+    .passthrough();
+
+// ----------------------------------------------------------------------
 
 /**
  * Generates an access control configuration from a user object.
@@ -41,26 +64,21 @@ import {
  * ```
  */
 export const generateUserAccessControlConfig = <T extends AuthUser>(
-    user?: T
+    user: T
 ): AccessControlConfig<T> => {
-    // Todo validate the shape of auth user
-    const userRoles = user
-        ? (user.roles.map((role) => role.name) as RoleNames<T>[])
-        : [];
+    const validatedAuthUser = AuthUserSchema.parse(user);
 
-    const userAttributes: UserAttribute<T> = user
-        ? Object.entries(user)
-              .filter(([key]) => key !== "roles")
-              .reduce((acc, [key, value]) => {
-                  return { ...acc, [key]: value };
-              }, {} as UserAttribute<T>)
-        : {};
+    const userRoles = validatedAuthUser.roles.map((role) => role.name);
 
-    const userPermissions = user
-        ? (user.roles.flatMap((role) =>
-              role.permissions.map((permission) => permission)
-          ) as UniquePermissions<T>[])
-        : [];
+    const userAttributes: UserAttribute<T> = Object.entries(validatedAuthUser)
+        .filter(([key]) => key !== "roles")
+        .reduce((acc, [key, value]) => {
+            return { ...acc, [key]: value };
+        }, {} as UserAttribute<T>);
+
+    const userPermissions = validatedAuthUser.roles.flatMap((role) =>
+        role.permissions.map((permission) => permission)
+    ) as UniquePermissions<T>[];
 
     return {
         userAttributes,

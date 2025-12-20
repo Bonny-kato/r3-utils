@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { ZodError } from "zod";
 import { generateUserAccessControlConfig } from "~/access-control/generate-user-access-control-config";
-import type { AuthUser, UserRole } from "~/access-control/type";
+import { AccessControlConfig, AuthUser, UserRole } from "~/access-control/type";
+import { tryCatch } from "~/utils";
 
 interface TestUser extends AuthUser {
     name: string;
@@ -54,11 +56,16 @@ describe("generateUserAccessControlConfig", () => {
         );
     });
 
-    it("returns empty arrays and object when user is undefined", () => {
-        const cfg = generateUserAccessControlConfig<TestUser>(undefined);
-        expect(cfg.userPermissions).toEqual([]);
-        expect(cfg.userRoles).toEqual([]);
-        expect(cfg.userAttributes).toEqual({});
+    it("should throw error if user object is invalid or undefined", () => {
+        const [configError, config] = tryCatch<
+            AccessControlConfig<TestUser>,
+            ZodError
+        >(() => generateUserAccessControlConfig<TestUser>(undefined!));
+
+        expect(config).toBe(null);
+        expect(configError).not.toBe(null);
+        expect(configError).toBeInstanceOf(ZodError);
+        expect(configError?.issues.length).toBeGreaterThan(0);
     });
 
     it("handles user with no roles", () => {

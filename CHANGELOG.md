@@ -64,6 +64,7 @@ All notable changes to this project will be documented in this file.
   normalized evaluation.
 - Implemented deep attribute comparison for attribute-based checks, improving correctness when validating nested
   objects.
+- Added schema validation to `generateUserAccessControlConfig` to ensure that the provided user object is valid.
 
 **Utilities**
 

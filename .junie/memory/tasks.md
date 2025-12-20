@@ -22,3 +22,24 @@ AccessRequirement and normalizeCheckOptions.",
 files"
 }
 
+[2025-12-20 21:36] - Updated by Junie - Trajectory analysis
+{
+"PLAN QUALITY": "suboptimal",
+"REDUNDANT STEPS": "diff vitest config, run typecheck twice, run vitest typecheck without matching files",
+"MISSING STEPS": "ask user, run full test suite, isolate failing test, reproduce error",
+"BOTTLENECK": "No concrete error message or failing test context was gathered.",
+"PROJECT NOTE": "AttributePredicate receives Required<UserAttribute<T>>; optional fields remain possibly undefined, so
+predicates should handle undefined (e.g., user.level ?? 0).",
+"NEW INSTRUCTION": "WHEN user reports an error without details THEN ask_user for exact error text and file"
+}
+
+[2025-12-20 21:38] - Updated by Junie - Trajectory analysis
+{
+"PLAN QUALITY": "near-optimal",
+"REDUNDANT STEPS": "-",
+"MISSING STEPS": "run tests",
+"BOTTLENECK": "No verification of test pass/fail before rating.",
+"PROJECT NOTE": "Tests are present under src/access-control/__tests__ and can be executed.",
+"NEW INSTRUCTION": "WHEN tests are present for the module THEN run tests and include results in review"
+}
+

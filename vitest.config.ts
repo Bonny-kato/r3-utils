@@ -5,6 +5,10 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
     test: {
+        coverage: {
+            enabled: true,
+            provider: "v8",
+        },
         projects: [
             {
                 plugins: [tsconfigPaths(), react()],
