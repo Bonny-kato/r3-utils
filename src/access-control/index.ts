@@ -16,10 +16,11 @@ import {
     AccessControlConfig,
     AccessControlStrictnessOptions,
     AccessRequirement,
+    AttributePredicate,
     AttributeRequirement,
-    PlainUserAttribute,
     AuthUser,
     GenerateAccessControlConfigFunc,
+    PlainUserAttribute,
     UserAccessControl,
 } from "./type";
 import { useHasAccess } from "./use-has-access";
@@ -42,12 +43,13 @@ export type {
     AccessControlConfig,
     AccessControlStrictnessOptions,
     AccessRequirement,
+    AttributePredicate,
     AttributeRequirement,
-    PlainUserAttribute,
     AuthUser,
     GenerateAccessControlConfigFunc,
     MenuConfig,
     MenuItemAccess,
     MenuItemConfig,
+    PlainUserAttribute,
     UserAccessControl,
 };

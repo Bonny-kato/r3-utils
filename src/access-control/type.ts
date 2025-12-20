@@ -154,6 +154,33 @@ export interface AttributeRequirement<T extends AuthUser = AuthUser>
     criteria: UserAttribute<T>;
 }
 
+/**
+ * A predicate function that receives user attributes and returns
+ * a boolean indicating whether access should be granted.
+ *
+ * This enables dynamic, conditional checks that simple value matching cannot handle,
+ * such as age restrictions, date-based access, numeric thresholds, and complex business logic.
+ *
+ * @template T - Type that extends AuthUser
+ *
+ * @example
+ * ```typescript
+ * // Age restriction
+ * const isAdult: AttributePredicate<AppUser> = (user) => user.age >= 18;
+ *
+ * // Date-based access
+ * const hasValidSubscription: AttributePredicate<AppUser> = (user) =>
+ *   new Date(user.subscriptionExpiry) > new Date();
+ *
+ * // Complex business logic
+ * const isSeniorEngineer: AttributePredicate<AppUser> = (user) =>
+ *   user.department === "engineering" && user.yearsOfExperience >= 5;
+ * ```
+ */
+export type AttributePredicate<T extends AuthUser = AuthUser> = (
+    userAttributes: Required<UserAttribute<T>>
+) => boolean;
+
 type NeverAllProps<T> = {
     [K in keyof T]?: never;
 };
@@ -216,11 +243,30 @@ export interface UserAccessControl<T extends AuthUser = AuthUser> {
      * Additional attributes required for access.
      * If provided, the user must match the configured attributes.
      *
-     * The plain object format is kept for backward compatibility.
-     * For new code, prefer using {@link AccessRequirement} to
-     * configure per‑requirement options like `requireAll` and `not`.
+     * Supports three mutually exclusive formats:
+     * 1. **Plain attribute object** - Simple exact value matching (backward compatible)
+     * 2. **AttributeRequirement** - Criteria object with `requireAll`/`not` options
+     * 3. **AttributePredicate** - Function for dynamic checks (e.g., age >= 18)
+     *
+     * When using a predicate function, no additional options apply - the function
+     * has full control over the access decision.
+     *
+     * @example
+     * ```ts
+     * // Plain attribute (exact match)
+     * attributes: { department: 'engineering' }
+     *
+     * // Criteria with options
+     * attributes: { criteria: { isActive: true }, requireAll: true }
+     *
+     * // Predicate function (full control)
+     * attributes: (user) => user.age >= 18
+     * ```
      */
-    attributes?: PlainUserAttribute<T> | AttributeRequirement<T>;
+    attributes?:
+        | PlainUserAttribute<T>
+        | AttributeRequirement<T>
+        | AttributePredicate<T>;
 }
 
 /**

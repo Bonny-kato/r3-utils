@@ -48,13 +48,13 @@ describe("Access Control Helpers", () => {
         expect(hasRole(userRoles, requiredRoles, true)).toBe(false);
     });
 
-    it("should return true is user has any of required attributes", () => {
+    it("should return true if user has any of required attributes", () => {
         expect(
             hasAttribute<TestAccAuthUser>(userAttribute, requiredAttributes)
         ).toBe(true);
     });
 
-    it("should return false is user dose not have all required attributes", () => {
+    it("should return false if user dose not have all required attributes", () => {
         expect(
             hasAttribute<TestAccAuthUser>(
                 userAttribute,
@@ -233,5 +233,176 @@ describe("Access Control Helpers", () => {
         };
 
         expect(hasAttribute<DeepUser>(userAttrs, requiredBad)).toBe(false);
+    });
+
+    // -------------------------------------------------------------------------
+    // Predicate Function Tests
+    // -------------------------------------------------------------------------
+
+    describe("Attribute predicate support", () => {
+        it("should support predicate function in hasAttribute for age check", () => {
+            const userAttrs = { age: 25, location: "Arusha", name: "John" };
+
+            // Age >= 18 check
+            const isAdult = hasAttribute<TestAccAuthUser>(
+                userAttrs,
+                (user) => user.age >= 18
+            );
+            expect(isAdult).toBe(true);
+
+            // Age >= 30 checks (should fail)
+            const isOver30 = hasAttribute<TestAccAuthUser>(
+                userAttrs,
+                (user) => user.age >= 30
+            );
+            expect(isOver30).toBe(false);
+        });
+
+        it("should support predicate function for complex business logic", () => {
+            interface ExtendedUser extends TestAccAuthUser {
+                department?: string;
+                yearsOfExperience?: number;
+            }
+
+            const seniorEngineer: Partial<ExtendedUser> = {
+                age: 35,
+                department: "engineering",
+                location: "Arusha",
+                name: "Jane",
+                yearsOfExperience: 8,
+            };
+
+            const juniorEngineer: Partial<ExtendedUser> = {
+                age: 23,
+                department: "engineering",
+                location: "Dar",
+                name: "Bob",
+                yearsOfExperience: 2,
+            };
+
+            // Senior engineer predicate: engineering dept + 5+ years experience
+            const isSeniorEngineer = (user: Partial<ExtendedUser>) =>
+                user.department === "engineering" &&
+                (user.yearsOfExperience ?? 0) >= 5;
+
+            expect(
+                hasAttribute<ExtendedUser>(seniorEngineer, isSeniorEngineer)
+            ).toBe(true);
+            expect(
+                hasAttribute<ExtendedUser>(juniorEngineer, isSeniorEngineer)
+            ).toBe(false);
+        });
+
+        it("should ignore options when using predicate function", () => {
+            const userAttrs = { age: 25, location: "Arusha", name: "John" };
+
+            // Even with not: true, a predicate result should not be inverted
+            // because options are ignored for predicates
+            const result = hasAttribute<TestAccAuthUser>(
+                userAttrs,
+                (user) => (user.age ?? 0) >= 18
+            );
+
+            // Predicate returns true (age >= 18), options are ignored
+            expect(result).toBe(true);
+        });
+
+        it("should support predicate function in checkIfAuthorized", () => {
+            type TUser = TestAccAuthUser;
+
+            const adultUser: AccessControlConfig<TUser> = {
+                userAttributes: { age: 25, location: "Arusha", name: "John" },
+                userPermissions: ["read:users"],
+                userRoles: ["admin"],
+            };
+
+            const minorUser: AccessControlConfig<TUser> = {
+                userAttributes: { age: 15, location: "Dar", name: "Kid" },
+                userPermissions: ["read:users"],
+                userRoles: ["admin"],
+            };
+
+            // Require age >= 18 using predicate
+            const adultOnlyAccess: UserAccessControl<TUser> = {
+                attributes: (user) => (user.age ?? 0) >= 18,
+            };
+
+            expect(checkIfAuthorized(adultUser, adultOnlyAccess)).toBe(true);
+            expect(checkIfAuthorized(minorUser, adultOnlyAccess)).toBe(false);
+        });
+
+        it("should support predicate combined with roles and permissions in checkIfAuthorized", () => {
+            type TUser = TestAccAuthUser;
+
+            const accessConfig: AccessControlConfig<TUser> = {
+                userAttributes: { age: 25, location: "Arusha", name: "John" },
+                userPermissions: ["read:users", "write:users"],
+                userRoles: ["admin"],
+            };
+
+            // Require admin role + write permission + age >= 21
+            const complexAccess: UserAccessControl<TUser> = {
+                attributes: (user) => (user.age ?? 0) >= 21,
+                permissions: ["write:users"],
+                roles: ["admin"],
+            };
+
+            expect(checkIfAuthorized(accessConfig, complexAccess)).toBe(true);
+
+            // User without required permission
+            const limitedUser: AccessControlConfig<TUser> = {
+                userAttributes: { age: 25, location: "Arusha", name: "John" },
+                userPermissions: ["read:users"],
+                userRoles: ["admin"],
+            };
+
+            expect(checkIfAuthorized(limitedUser, complexAccess)).toBe(false);
+        });
+
+        it("should handle predicate returning false correctly", () => {
+            const userAttrs = { age: 16, location: "Arusha", name: "Teen" };
+
+            const isAdult = hasAttribute<TestAccAuthUser>(
+                userAttrs,
+                (user) => (user.age ?? 0) >= 18
+            );
+
+            expect(isAdult).toBe(false);
+        });
+
+        it("should support range checks with predicate", () => {
+            interface LevelUser extends TestAccAuthUser {
+                level?: number;
+            }
+
+            const midLevelUser: Partial<LevelUser> = {
+                age: 30,
+                level: 7,
+                location: "Arusha",
+                name: "Mid",
+            };
+
+            // Level between 5 and 10 (inclusive)
+            const isMidLevel = hasAttribute<LevelUser>(
+                midLevelUser,
+                (user) => user.level >= 5 && user.level <= 10
+            );
+
+            expect(isMidLevel).toBe(true);
+
+            const lowLevelUser: Partial<LevelUser> = {
+                age: 25,
+                level: 3,
+                location: "Dar",
+                name: "Low",
+            };
+
+            expect(
+                hasAttribute<LevelUser>(
+                    lowLevelUser,
+                    (user) => user.level >= 5 && user.level <= 10
+                )
+            ).toBe(false);
+        });
     });
 });

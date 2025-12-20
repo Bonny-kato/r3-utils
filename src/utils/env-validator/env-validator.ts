@@ -25,8 +25,8 @@ export interface EnvValidatorOptions {
 export type EnvSchema<T = string> = z.ZodObject<Record<keyof T, z.ZodType>>;
 
 const defaultOptions: EnvValidatorOptions = {
-    processENV: process.env,
     errorLogger: console.error,
+    processENV: process.env,
 };
 
 /**

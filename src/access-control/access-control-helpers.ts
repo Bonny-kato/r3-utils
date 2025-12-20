@@ -1,9 +1,10 @@
-import { normalizeToArray, typedKeys } from "~/utils";
+import { isEmpty, normalizeToArray, typedKeys } from "~/utils";
 import {
     AccessCheckOptions,
     AccessControlConfig,
     AccessControlStrictnessOptions,
     AccessRequirement,
+    AttributePredicate,
     AttributeRequirement,
     AuthUser,
     RoleNames,
@@ -53,37 +54,33 @@ const isAttributesRequirement = <T extends AuthUser>(
 
 export const normalizeAccessRequirement = <T>(
     input: T | T[] | AccessRequirement<T> | AttributeRequirement | undefined,
-    legacyStrictness?: boolean
+    legacyStrictness = false
 ): AccessRequirement<T> => {
-    const defaultRequireAll = legacyStrictness ?? false;
-
     if (input == null) {
         return {
             list: [],
             not: false,
-            requireAll: defaultRequireAll,
+            requireAll: legacyStrictness,
         };
     }
 
     if (isAccessRequirement<T>(input) || isAttributesRequirement(input)) {
-        const i = input as any;
         const listRaw = isAttributesRequirement(input)
-            ? (i.criteria ?? i.values ?? i.list)
-            : i.list;
+            ? input.criteria
+            : input.list;
 
         return {
             list: normalizeToArray(listRaw as T),
-            not: (input as AccessCheckOptions).not ?? false,
-            requireAll:
-                (input as AccessCheckOptions).requireAll ?? defaultRequireAll,
+            not: input.not ?? false,
+            requireAll: input.requireAll ?? legacyStrictness,
         };
     }
-
+    // backwards compatibility for versions <= v2.3.4
     if (Array.isArray(input)) {
         return {
             list: input,
             not: false,
-            requireAll: defaultRequireAll,
+            requireAll: legacyStrictness,
         };
     }
 
@@ -91,7 +88,7 @@ export const normalizeAccessRequirement = <T>(
     return {
         list: [input as T],
         not: false,
-        requireAll: defaultRequireAll,
+        requireAll: legacyStrictness,
     };
 };
 
@@ -189,6 +186,41 @@ export const hasPermission = <TUser extends AuthUser>(
 //  hasAttributes
 // ----------------------------------------------------------------------
 
+/**
+ * Recursively checks whether two values are deeply equal.
+ *
+ * @remarks
+ * This function can handle comparisons for:
+ * - Primitive values (e.g., `string`, `number`, `boolean`)
+ * - Arrays
+ * - Plain objects
+ *
+ * Objects and arrays are compared recursively to ensure deep equality.
+ * If either argument is not of the same type, the function returns `false`.
+ *
+ * @param a - The first value to compare. Can be of any type.
+ * @param b - The second value to compare. Can be of any type.
+ * @returns `true` if the inputs are deeply equal, otherwise `false`.
+ *
+ * @example
+ * ```ts
+ * // Comparing primitive values
+ * deepEqual(1, 1); // true
+ * deepEqual('hello', 'world'); // false
+ *
+ * // Comparing arrays
+ * deepEqual([1, 2, 3], [1, 2, 3]); // true
+ * deepEqual([1, 2], [1, 2, 3]); // false
+ *
+ * // Comparing objects
+ * deepEqual({ a: 1, b: 2 }, { a: 1, b: 2 }); // true
+ * deepEqual({ a: 1, b: 2 }, { a: 1, c: 3 }); // false
+ *
+ * // Mixed types
+ * deepEqual({ a: [1, 2] }, { a: [1, 2] }); // true
+ * deepEqual({ a: [1, 2] }, { a: [2, 1] }); // false
+ * ```
+ */
 const deepEqual = (a: any, b: any): boolean => {
     if (a === b) return true;
 
@@ -213,56 +245,99 @@ const deepEqual = (a: any, b: any): boolean => {
 };
 
 // ----------------------------------------------------------------------
-
 /**
- * Checks if a user has the required attributes based on their user attributes.
- * Performs attribute-based access control by comparing user attributes with required values.
+ * Checks if user attributes match a predicate function.
+ *
+ * This overload allows for dynamic, conditional attribute checks using custom logic
+ * that cannot be expressed through simple value matching (e.g., age restrictions,
+ * date comparisons, numeric thresholds, complex business rules).
  *
  * @template T - Type that extends AuthUser
- * @param userAttributes - Object containing the user's attributes (excluding roles)
- * @param requiredAttributes - Object (or list of objects) containing the required
- * attribute values for access.
- * @param options - Options controlling how the requirement is evaluated.
- * Can be a boolean (legacy `strict` flag) or an object with
- * `requireAll` and `not` for granular control.
- * @returns True if the user has the required attributes, false otherwise
+ * @param userAttributes - The current user's attributes to evaluate
+ * @param predicate - A function that receives the user attributes and returns true if access should be granted
+ * @returns True if the predicate function returns true, false otherwise
  *
  * @example
  * ```typescript
- * const userAttributes = { department: 'engineering', isActive: true, level: 'senior' };
- * const requiredAttributes = { department: 'engineering', isActive: true };
+ * const userAttrs = { age: 25, department: 'engineering', yearsOfExperience: 3 };
  *
- * // Non-strict mode (default) - user needs at least one matching attribute
- * hasAttribute(userAttributes, { department: 'engineering' }); // true
+ * // Age-based check
+ * const isAdult = (attrs: Required<UserAttribute<AppUser>>) => attrs.age >= 18;
+ * hasAttribute(userAttrs, isAdult); // true
  *
- * // Strict mode - user needs all matching attributes
- * hasAttribute(userAttributes, requiredAttributes, true); // true
- * hasAttribute(userAttributes, { department: 'engineering', isActive: false }, true); // false
+ * // Complex business logic
+ * const isSeniorEngineer = (attrs: Required<UserAttribute<AppUser>>) =>
+ *   attrs.department === 'engineering' && attrs.yearsOfExperience >= 5;
+ * hasAttribute(userAttrs, isSeniorEngineer); // false
  * ```
  */
-export const hasAttribute = <T extends AuthUser>(
+export function hasAttribute<T extends AuthUser>(
     userAttributes: UserAttribute<T>,
-    requiredAttributes: UserAttribute<T> | UserAttribute<T>[],
-    options: boolean | AccessCheckOptions = {}
-): boolean => {
-    const { requireAll, not } = normalizeCheckOptions(options);
-    const requiredList = Array.isArray(requiredAttributes)
-        ? requiredAttributes
-        : [requiredAttributes];
+    predicate: AttributePredicate<T>
+): boolean;
 
-    if (requiredList.length === 0) {
+/**
+ * Checks if user attributes match the required attribute criteria.
+ *
+ * This overload performs value-based matching between user attributes and required attributes.
+ * Supports single attribute objects, arrays of attribute objects, and advanced options
+ * for controlling match behavior (requireAll, not).
+ *
+ * @template T - Type that extends AuthUser
+ * @param userAttributes - The current user's attributes to evaluate
+ * @param requiredAttributes - The attribute(s) required for access. Can be a single attribute object or an array of attribute objects
+ * @param options - Options controlling how the requirement is evaluated. Can be a boolean (legacy `strict` flag) or an object with `requireAll` and `not` for granular control
+ * @returns True if the user's attributes satisfy the requirements, false otherwise
+ *
+ * @example
+ * ```typescript
+ * const userAttrs = { department: 'engineering', isActive: true, level: 'senior' };
+ *
+ * // Single attribute check (non-strict, any matching key)
+ * hasAttribute(userAttrs, { department: 'engineering' }); // true
+ *
+ * // Multiple attributes (at least one key must match by default)
+ * hasAttribute(userAttrs, { department: 'engineering', isActive: true }); // true
+ *
+ * // Strict mode using boolean - all keys must match
+ * hasAttribute(userAttrs, { department: 'engineering', level: 'junior' }, true); // false
+ *
+ * // Using options object with requireAll
+ * hasAttribute(userAttrs, { department: 'engineering', isActive: true }, { requireAll: true }); // true
+ *
+ * // Negation - user must NOT have these attributes
+ * hasAttribute(userAttrs, { isBanned: true }, { not: true }); // true (user doesn't have isBanned)
+ * ```
+ */
+export function hasAttribute<T extends AuthUser>(
+    userAttributes: UserAttribute<T>,
+    requiredAttributes: UserAttribute<T>,
+    options?: AccessCheckOptions | boolean
+): boolean;
+
+export function hasAttribute<T extends AuthUser>(
+    userAttributes: UserAttribute<T>,
+    requiredAttributes: UserAttribute<T> | AttributePredicate<T>,
+    options: boolean | AccessCheckOptions = {}
+): boolean {
+    if (typeof requiredAttributes === "function") {
+        return requiredAttributes(userAttributes as Required<UserAttribute<T>>);
+    }
+
+    const { requireAll, not } = normalizeCheckOptions(options);
+
+    if (isEmpty(requiredAttributes)) {
         const base = true;
         return not ? !base : base;
     }
 
-    const [attr] = requiredList;
     const keyCheckType = requireAll ? "every" : "some";
 
-    const hasMatch = typedKeys(attr)[keyCheckType]((key) =>
-        deepEqual(userAttributes[key], attr[key])
+    const hasMatch = typedKeys(requiredAttributes)[keyCheckType]((key) =>
+        deepEqual(userAttributes[key], requiredAttributes[key])
     );
     return not ? !hasMatch : hasMatch;
-};
+}
 
 // ----------------------------------------------------------------------
 //  checkIfAuthorized
@@ -319,10 +394,6 @@ export const checkIfAuthorized = <TUser extends AuthUser>(
         UniquePermissions<TUser>
     >(permissions, strictnessOptions.permissions);
 
-    const normalizedAttributes = normalizeAccessRequirement<
-        UserAttribute<TUser>
-    >(attributes, strictnessOptions.attributes);
-
     // ----------------------------------------------------------------------
     //  Access control checks
     // ----------------------------------------------------------------------
@@ -341,12 +412,26 @@ export const checkIfAuthorized = <TUser extends AuthUser>(
             requireAll: normalizedPermissions.requireAll,
         });
 
-    const attributesOk =
-        normalizedAttributes.list.length === 0 ||
-        hasAttribute<TUser>(userAttributes, normalizedAttributes.list, {
-            not: normalizedAttributes.not,
-            requireAll: normalizedAttributes.requireAll,
-        });
+    //💡 Handle attributes - check if it's a predicate function first
+    let attributesOk: boolean;
+    if (typeof attributes === "function") {
+        attributesOk = hasAttribute<TUser>(userAttributes, attributes);
+    } else if (attributes == null) {
+        attributesOk = true;
+    } else {
+        const normalizedAttributes = normalizeAccessRequirement<
+            UserAttribute<TUser>
+        >(attributes, strictnessOptions.attributes);
+
+        attributesOk = hasAttribute<TUser>(
+            userAttributes,
+            normalizedAttributes.list[0],
+            {
+                not: normalizedAttributes.not,
+                requireAll: normalizedAttributes.requireAll,
+            }
+        );
+    }
 
     return rolesOk && permissionsOk && attributesOk;
 };

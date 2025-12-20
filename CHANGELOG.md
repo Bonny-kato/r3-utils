@@ -2,6 +2,85 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.3.5-beta.7](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.7) (2025-11-23)
+
+### What's new
+
+**Access Control Module**
+
+- Introduced `createAccessControl<TUser>()` factory to generate type-safe hooks, components, and helpers bound to your
+  app-specific user type. This includes typed variants of `AccessControl`, `AccessControlProvider`, `useHasAccess`,
+  `useAccessControl`, `requireAccess`, `checkAccess`, `generateMenuAccess`, and `generateUserAccessControlConfig`.
+- Added attribute access's predicate function for dynamic attribute checks.
+  ```ts
+  // Plain attribute (exact match)
+  attributes: { department: 'engineering' }
+
+  // Criteria with options
+  attributes: { criteria: { isActive: true }, requireAll: true }
+
+  // Predicate function (full control)
+  attributes: (user) => user.age >= 18
+  ```
+
+### What's changed
+
+**Access Control Module**
+
+- Deprecated the global `strictness` configuration in favor of granular, per-requirement options via `requireAll` and
+  `not` within roles, permissions, and attributes definitions. The simple array form remains supported for backward
+  compatibility.
+  ```ts
+  const user: AppUser = {
+        id: '123',
+        roles: [{ name: 'EDITOR', permissions: ['read:posts', 'write:posts'] }],
+        department: 'content'
+  };
+
+  const requiredAccess: UserAccessControl<AppUser> = {
+    roles: ['editor'],
+    permissions: ['write:posts']
+  };
+    // old way
+  const hasAccess = checkAccess(user, requiredAccess, { 
+    // passsing strictness as a global config is deprecated
+    attributes:true,
+    permissions:true,
+    roles:true,
+  });
+  
+  // New Way
+  const newRequiredAccess: UserAccessControl<AppUser> = {
+    permissions: {list: ["edit:users", "edit:posts"], requireAll:true},
+    role: {list: ["editor", "admin"], not: true} // negate role check meaning grant access if user is not an admin or editor
+  };
+    
+  const hasAccess2 = checkAccess(user,newRequiredAccess)
+  ```
+  With the new approach, you can now localize the strictness of each requirement independently but also you can negate
+  the requirement meaning grant access if the user does not have the required permission or role.
+  <hr/>
+- Updated `hasRole`, `hasPermission`, and `hasAttribute` helpers to support the new per-requirement options and
+  normalized evaluation.
+- Implemented deep attribute comparison for attribute-based checks, improving correctness when validating nested
+  objects.
+
+**Utilities**
+
+- Improved `isNotEmpty` utility to narrow types correctly (`value is NonNullable<T>`), enhancing type safety across the
+  codebase.
+- Added `isEmpty` utility to complement `isNotEmpty`, providing a type-safe way to check for emptiness.
+
+### Dependencies
+
+- Upgraded `axios` to the latest version (now `^1.13.2`).
+
+### Docs, tests, and chores
+
+- Added project development guidelines for the Junie JetBrains agent.
+- Renamed `src/http-client/__tests__` to `src/http-client/tests` for consistency.
+- Added browser-based tests and test utilities for access control.
+
 ## [v2.3.5-beta.6](https://github.com/Bonny-kato/r3-utils/tree/v2.3.5-beta.6) (2025-10-28)
 
 ### What's fixed

@@ -6,8 +6,8 @@ import { z } from "zod";
  * Ensures the error object has the required properties of an ErrorResponse.
  */
 const errorResponseSchema = z.object({
-    status: z.number(),
     data: z.any(),
+    status: z.number(),
     statusText: z.string(),
 });
 
@@ -22,8 +22,8 @@ const NON_STANDARD_ERROR_CODE = 782;
  * Default error response used when an error cannot be parsed into a proper ErrorResponse.
  */
 const defaultErrorResponse: ErrorResponse = {
-    status: NON_STANDARD_ERROR_CODE,
     data: { message: "Unexpected Error has occurred" },
+    status: NON_STANDARD_ERROR_CODE,
     statusText: "Unexpected Error has occurred",
 };
 
@@ -69,7 +69,6 @@ const tryParseErrorJson = (message: string): unknown | null => {
  * @returns A structured ErrorResponse object
  */
 export const parseErrorResponse = (_error: unknown): ErrorResponse => {
-    console.log("[_error]", _error);
     // Handle React Router errors
     if (isRouteErrorResponse(_error)) {
         return _error;
