@@ -81,7 +81,7 @@
         "ioredis": "^5.6.0",
         "react": "^18.0.0 || ^19.0.0",
         "react-dom": "^19.0.0",
-        "react-router": "^7.3.0"
+        "react-router": "^7.12.0"
     },
     "publishConfig": {
         "access": "public"
@@ -109,11 +109,11 @@
         "prettier-plugin-organize-imports": "^4.1.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
-        "react-router": "^7.3.0",
+        "react-router": "^7.12.0",
         "rimraf": "^6.0.1",
         "tsdown": "^0.22.14",
         "typescript": "^5.8.2",
-        "vite": "^7.1.12",
+        "vite": "^8.2.1",
         "vite-tsconfig-paths": "^5.1.4",
         "vitest": "^4.0.16",
         "vitest-browser-react": "^2.0.2"
@@ -135,7 +135,7 @@
     "dependencies": {
         "@bonny-kato/localstorage": "^0.0.2",
         "@vitest/browser": "^4.0.16",
-        "axios": "^1.13.2",
+        "axios": "1.15.0",
         "dayjs": "^1.11.19",
         "react-hook-form": "^7.54.2",
         "remix-toast": "^2.0.0",
