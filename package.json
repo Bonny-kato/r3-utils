@@ -76,7 +76,7 @@
         "url": "https://github.com/Bonny-kato/r3-utils/issues"
     },
     "license": "MIT",
-    "packageManager": "pnpm@10.26.1",
+    "packageManager": "pnpm@11.21.0",
     "peerDependencies": {
         "ioredis": "^5.6.0",
         "react": "^18.0.0 || ^19.0.0",
