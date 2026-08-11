@@ -16,3 +16,19 @@ redundant 'not' when using predicate.",
 design"
 }
 
+[2025-12-21 00:14] - Updated by Junie
+{
+"TYPE": "correction",
+"CATEGORY": "UI action controls",
+"EXPECTATION": "User expects visible submit buttons for posting and commenting in compose forms.",
+"NEW INSTRUCTION": "WHEN designing post or comment compose form THEN add primary submit button with clear label"
+}
+
+[2025-12-21 00:17] - Updated by Junie
+{
+"TYPE": "correction",
+"CATEGORY": "Compose form submission",
+"EXPECTATION": "User wants a visible submit button and Shift+Enter to submit the form.",
+"NEW INSTRUCTION": "WHEN compose form created THEN add visible submit button and submit on Shift+Enter"
+}
+

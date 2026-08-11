@@ -1,11 +1,14 @@
-import { defineConfig, UserConfig } from "tsdown";
+import { defineConfig } from "tsdown";
+import type { UserConfig } from "tsdown";
 
 const sharableConfig: UserConfig = {
     alias: { "~/*": "./src/*" },
+    deps: {
+        neverBundle: ["node:process"],
+    },
     dts: {
         sourcemap: true,
     },
-    external: ["node:process"],
     minify: true,
     sourcemap: true,
     unbundle: true,

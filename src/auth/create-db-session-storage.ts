@@ -152,6 +152,9 @@ export const createDbSessionStorage = <User extends UserIdentifier>(
             // 2️⃣ Check if the session is expired
             if (sessionData?.expires && sessionData.expires < new Date()) {
                 await storageAdapter.remove(sessionId);
+                if (enableSingleSession && sessionData.user) {
+                    await storageAdapter.removeUserSession(sessionData.user.id);
+                }
                 return null;
             }
 

@@ -77,6 +77,14 @@ interface HttpMethodRequestConfig {
   token?: string;
   /** Request timeout in milliseconds */
   timeout?: number;
+  /**
+   * Error shape for this call only.
+   * - "legacy" (default): ErrorType with root-spread + always-number status
+   * - "modern": discriminated ModernHttpError
+   */
+  errorMode?: "legacy" | "modern";
+  /** Axios responseType; used for success-data inference when TResponse is omitted */
+  responseType?: ResponseType;
 }
 ```
 
@@ -84,13 +92,59 @@ interface HttpMethodRequestConfig {
 
 The module uses a tuple-based approach for error handling, where each method returns a promise that resolves to a tuple of `[error, data]`. This allows for more predictable error handling without try-catch blocks.
 
+By default, errors use the **legacy** shape (backward compatible). You can opt into the **modern** shape per request via `errorMode: "modern"`.
+
 ```typescript
-interface ErrorType {
+// Legacy / default (always has status; body fields may be root-spread)
+interface ErrorType<TErrorData = unknown> {
   message: string;
   status: number;
+  data?: TErrorData;   // response.data as-is
+  cause?: unknown;     // original Axios/error
+  code?: string;       // transport code when available
 }
 
-type TryCatchHttpReturnType<T> = [null, T] | [ErrorType, null];
+// Modern (opt-in per call)
+type ModernHttpError<TErrorData = unknown> =
+  | {
+      kind: "http";
+      message: string;
+      status: number; // required on HTTP failures
+      data: TErrorData;
+      code?: string;
+      cause: unknown;
+    }
+  | {
+      kind: "network" | "timeout" | "canceled" | "unknown";
+      message: string;
+      code?: string;
+      cause: unknown;
+    };
+
+type TryCatchHttpReturnType<TData, TError = ErrorType> =
+  | [null, TData]
+  | [TError, null];
+```
+
+#### Gradual migration (per request)
+
+```typescript
+// still legacy (default)
+const [legacyError, user] = await api.get<User>("/users/1");
+
+// only this call uses modern errors
+const [modernError, file] = await api.get("/report.pdf", {
+  responseType: "blob",
+  errorMode: "modern",
+});
+
+if (modernError) {
+  if (modernError.kind === "http") {
+    console.log(modernError.status, modernError.data);
+  } else {
+    console.log(modernError.kind, modernError.cause);
+  }
+}
 ```
 
 ## Usage Examples

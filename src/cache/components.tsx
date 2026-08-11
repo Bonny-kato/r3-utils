@@ -12,7 +12,10 @@ import {
 import { type LoaderFunction, useFetcher } from "react-router";
 import { useEventListener } from "~/hooks";
 import { CacheClient, type CacheEntryType } from "./cache-client";
-import { unwrapNestedPromise, type UnwrapNestedPromise, } from "./unwrap-nested-promise";
+import {
+    unwrapNestedPromise,
+    type UnwrapNestedPromise,
+} from "./unwrap-nested-promise"; ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 //#region useFetch hook

@@ -121,10 +121,11 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                 ...data,
             };
 
+            const expiresAt = expires ?? sessionData.expires;
             const [err, result] = await this.set(
                 sessionId,
                 updatedUser,
-                expires
+                expiresAt
             );
             if (err) throw err;
             return result;
@@ -132,12 +133,12 @@ export class RedisStorageAdapter<User extends UserIdentifier>
     }
 
     setUserSession(
-        userId: string,
+        userId: string | number,
         sessionId: string
     ): Promise<TryCatchResult<boolean>> {
         return tryCatch(async () => {
             const result = await this.#redisClient.set(
-                `user_session:${userId}`,
+                this.#userSessionKey(userId),
                 sessionId
             );
             return result === "OK";
@@ -145,17 +146,17 @@ export class RedisStorageAdapter<User extends UserIdentifier>
     }
 
     getUserActiveSession(
-        userId: string
+        userId: string | number
     ): Promise<TryCatchResult<string | null>> {
         return tryCatch(async () => {
-            return this.#redisClient.get(`user_session:${userId}`);
+            return this.#redisClient.get(this.#userSessionKey(userId));
         });
     }
 
-    removeUserSession(userId: string): Promise<TryCatchResult<boolean>> {
+    removeUserSession(userId: string | number): Promise<TryCatchResult<boolean>> {
         return tryCatch(async () => {
             const result = await this.#redisClient.del(
-                `user_session:${userId}`
+                this.#userSessionKey(userId)
             );
             return result === 1; // one means okay;
         });
@@ -350,9 +351,7 @@ export class RedisStorageAdapter<User extends UserIdentifier>
                     user: data,
                 });
 
-                const ttl = expires
-                    ? Math.floor(expires.getTime() / 1000)
-                    : this.#defaultTTL;
+                const ttl = this.#getTtlSeconds(expires);
 
                 // const ttl = this.#defaultTTL;
 
@@ -398,6 +397,16 @@ export class RedisStorageAdapter<User extends UserIdentifier>
 
     generateSessionDataIdentifier(sessionId: string) {
         return `${this.#collectionName}:${sessionId}`;
+    }
+
+    #userSessionKey(userId: string | number) {
+        return `${this.#collectionName}:user_session:${String(userId)}`;
+    }
+
+    #getTtlSeconds(expires?: Date) {
+        if (!expires) return this.#defaultTTL;
+        const seconds = Math.ceil((expires.getTime() - Date.now()) / 1000);
+        return Math.max(1, seconds);
     }
 
     /**

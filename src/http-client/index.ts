@@ -7,7 +7,14 @@ export {
     HttpClient,
     type BaseUrl,
     type Endpoint,
+    type HttpMethodRequestConfig,
     type HttpRequestConfig,
 } from "./httpclient";
 export * from "./status-code";
-export { tryCatchHttp, type TryCatchHttpReturnType } from "./try-catch-http";
+export {
+    tryCatchHttp,
+    type ErrorMode,
+    type ErrorType,
+    type ModernHttpError,
+    type TryCatchHttpReturnType,
+} from "./try-catch-http";

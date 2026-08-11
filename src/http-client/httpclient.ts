@@ -4,11 +4,25 @@ import axios, {
     AxiosResponse,
     Method as HttpMethod,
     InternalAxiosRequestConfig,
+    ResponseType,
 } from "axios";
-import { ErrorType, tryCatchHttp } from "./try-catch-http";
+import {
+    ErrorMode,
+    ErrorType,
+    ModernHttpError,
+    tryCatchHttp,
+    TryCatchHttpReturnType,
+} from "./try-catch-http";
 
-export type BaseUrl = `https://${string}` | `http://${string}`;
-export type Endpoint = `/${string}` | `${BaseUrl}/${string}`;
+/**
+ * @deprecated Use plain `string` instead.
+ */
+export type BaseUrl = string;
+
+/**
+ * @deprecated Use plain `string` instead.
+ */
+export type Endpoint = string;
 
 type OnRequestFulfilled<TBody = unknown> = (
     config: InternalAxiosRequestConfig<TBody>
@@ -30,7 +44,7 @@ export interface ExtendedAxiosInstance extends Omit<AxiosInstance, "defaults"> {
 export interface HttpRequestConfig<TBody = unknown>
     extends Omit<AxiosRequestConfig<TBody>, "method" | "url" | "baseURL"> {
     /** Base URL for all API requests */
-    baseUrl?: BaseUrl;
+    baseUrl?: string;
     /** Whether to log request details to the console */
     logRequests?: boolean;
 }
@@ -38,9 +52,16 @@ export interface HttpRequestConfig<TBody = unknown>
 /**
  * Configuration options for individual HTTP method requests
  */
-type HttpMethodRequestConfig<TBody = unknown> = Partial<
+export type HttpMethodRequestConfig<TBody = unknown> = Partial<
     Omit<HttpRequestConfig<TBody>, "logRequests">
->;
+> & {
+    /**
+     * Error shape for this call only.
+     * - `"legacy"` (default): current ErrorType + root-spread + always-number status
+     * - `"modern"`: discriminated honest error (`kind`, `data` as-is, `cause`)
+     */
+    errorMode?: ErrorMode;
+};
 
 /**
  * Internal request configuration options
@@ -48,14 +69,49 @@ type HttpMethodRequestConfig<TBody = unknown> = Partial<
 interface RequestConfig<TBody = unknown>
     extends HttpMethodRequestConfig<TBody> {
     /** API endpoint path */
-    endpoint: Endpoint;
+    endpoint: string;
     /** HTTP method */
     method: HttpMethod;
 }
 
 type RequestInterceptorOptions = {
-    runWhen?: (config: InternalAxiosRequestConfig) => boolean; // Also update this
+    runWhen?: (config: InternalAxiosRequestConfig) => boolean;
     synchronous?: boolean;
+};
+
+/**
+ * Infer response data type from Axios `responseType` when `TResponse` is not provided.
+ * Explicit `TResponse` always wins.
+ */
+type ResponseDataByType<R extends ResponseType | undefined> = R extends "text"
+    ? string
+    : R extends "blob"
+      ? Blob
+      : R extends "arraybuffer"
+        ? ArrayBuffer
+        : R extends "document"
+          ? Document
+          : R extends "stream"
+            ? unknown
+            : unknown;
+
+type InferResponseData<
+    TResponse,
+    TConfig extends HttpMethodRequestConfig | undefined,
+> = unknown extends TResponse
+    ? TConfig extends { responseType: infer R }
+        ? R extends ResponseType
+            ? ResponseDataByType<R>
+            : TResponse
+        : TResponse
+    : TResponse;
+
+type LegacyRequestConfig<TBody = unknown> = HttpMethodRequestConfig<TBody> & {
+    errorMode?: "legacy";
+};
+
+type ModernRequestConfig<TBody = unknown> = HttpMethodRequestConfig<TBody> & {
+    errorMode: "modern";
 };
 
 export class HttpClient {
@@ -119,94 +175,219 @@ export class HttpClient {
      * Makes a POST request to the specified endpoint
      * @returns Tuple of [error, response]
      */
-    post = async <
-        TResponse,
+    post<
+        TResponse = unknown,
         TBody = unknown,
         TError extends ErrorType = ErrorType,
+        TConfig extends LegacyRequestConfig<TBody> = LegacyRequestConfig<TBody>,
     >(
-        endpoint: Endpoint,
+        endpoint: string,
+        body: TBody,
+        config?: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<InferResponseData<TResponse, TConfig>, TError>
+    >;
+
+    post<
+        TResponse = unknown,
+        TBody = unknown,
+        TErrorData = unknown,
+        TConfig extends ModernRequestConfig<TBody> = ModernRequestConfig<TBody>,
+    >(
+        endpoint: string,
+        body: TBody,
+        config: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<
+            InferResponseData<TResponse, TConfig>,
+            ModernHttpError<TErrorData>
+        >
+    >;
+
+    post<TResponse = unknown, TBody = unknown>(
+        endpoint: string,
         body: TBody,
         config?: HttpMethodRequestConfig<TBody>
-    ) => {
-        return this.#request<TResponse, TBody, TError>({
+    ) {
+        return this.#request<TResponse, TBody>({
             data: body,
             endpoint,
             ...config,
             method: "POST",
         });
-    };
+    }
 
     /**
      * Makes a DELETE request to the specified endpoint
      * @returns Tuple of [error, response]
      */
-    delete = async <TResponse, TError extends ErrorType = ErrorType>(
-        endpoint: Endpoint,
+    delete<
+        TResponse = unknown,
+        TError extends ErrorType = ErrorType,
+        TConfig extends LegacyRequestConfig = LegacyRequestConfig,
+    >(
+        endpoint: string,
+        config?: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<InferResponseData<TResponse, TConfig>, TError>
+    >;
+
+    delete<
+        TResponse = unknown,
+        TErrorData = unknown,
+        TConfig extends ModernRequestConfig = ModernRequestConfig,
+    >(
+        endpoint: string,
+        config: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<
+            InferResponseData<TResponse, TConfig>,
+            ModernHttpError<TErrorData>
+        >
+    >;
+
+    delete<TResponse = unknown>(
+        endpoint: string,
         config?: HttpMethodRequestConfig
-    ) => {
-        return this.#request<TResponse, unknown, TError>({
+    ) {
+        return this.#request<TResponse>({
             endpoint,
             method: "DELETE",
             ...config,
         });
-    };
+    }
 
     /**
      * Makes a PUT request to the specified endpoint
      * @returns Tuple of [error, response]
      */
-    put = async <
-        TResponse,
+    put<
+        TResponse = unknown,
         TBody = unknown,
         TError extends ErrorType = ErrorType,
+        TConfig extends LegacyRequestConfig<TBody> = LegacyRequestConfig<TBody>,
     >(
-        endpoint: Endpoint,
+        endpoint: string,
+        body: TBody,
+        config?: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<InferResponseData<TResponse, TConfig>, TError>
+    >;
+
+    put<
+        TResponse = unknown,
+        TBody = unknown,
+        TErrorData = unknown,
+        TConfig extends ModernRequestConfig<TBody> = ModernRequestConfig<TBody>,
+    >(
+        endpoint: string,
+        body: TBody,
+        config: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<
+            InferResponseData<TResponse, TConfig>,
+            ModernHttpError<TErrorData>
+        >
+    >;
+
+    put<TResponse = unknown, TBody = unknown>(
+        endpoint: string,
         body: TBody,
         config?: HttpMethodRequestConfig<TBody>
-    ) => {
-        return this.#request<TResponse, TBody, TError>({
+    ) {
+        return this.#request<TResponse, TBody>({
             data: body,
             endpoint,
             method: "PUT",
             ...config,
         });
-    };
+    }
 
     /**
      * Makes a PATCH request to the specified endpoint
      * @returns Tuple of [error, response]
      */
-    patch = async <
-        TResponse,
+    patch<
+        TResponse = unknown,
         TBody = unknown,
         TError extends ErrorType = ErrorType,
+        TConfig extends LegacyRequestConfig<TBody> = LegacyRequestConfig<TBody>,
     >(
-        endpoint: Endpoint,
+        endpoint: string,
+        body: TBody,
+        config?: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<InferResponseData<TResponse, TConfig>, TError>
+    >;
+
+    patch<
+        TResponse = unknown,
+        TBody = unknown,
+        TErrorData = unknown,
+        TConfig extends ModernRequestConfig<TBody> = ModernRequestConfig<TBody>,
+    >(
+        endpoint: string,
+        body: TBody,
+        config: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<
+            InferResponseData<TResponse, TConfig>,
+            ModernHttpError<TErrorData>
+        >
+    >;
+
+    patch<TResponse = unknown, TBody = unknown>(
+        endpoint: string,
         body: TBody,
         config?: HttpMethodRequestConfig<TBody>
-    ) => {
-        return this.#request<TResponse, TBody, TError>({
+    ) {
+        return this.#request<TResponse, TBody>({
             data: body,
             endpoint,
             method: "PATCH",
             ...config,
         });
-    };
+    }
 
     /**
      * Makes a GET request to the specified endpoint
      * @returns Tuple of [error, response]
      */
-    get = async <TResponse, TError extends ErrorType = ErrorType>(
-        endpoint: Endpoint,
+    get<
+        TResponse = unknown,
+        TError extends ErrorType = ErrorType,
+        TConfig extends LegacyRequestConfig = LegacyRequestConfig,
+    >(
+        endpoint: string,
+        config?: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<InferResponseData<TResponse, TConfig>, TError>
+    >;
+
+    get<
+        TResponse = unknown,
+        TErrorData = unknown,
+        TConfig extends ModernRequestConfig = ModernRequestConfig,
+    >(
+        endpoint: string,
+        config: TConfig
+    ): Promise<
+        TryCatchHttpReturnType<
+            InferResponseData<TResponse, TConfig>,
+            ModernHttpError<TErrorData>
+        >
+    >;
+
+    get<TResponse = unknown>(
+        endpoint: string,
         config?: HttpMethodRequestConfig
-    ) => {
-        return this.#request<TResponse, unknown, TError>({
+    ) {
+        return this.#request<TResponse>({
             ...config,
             endpoint,
             method: "GET",
         });
-    };
+    }
 
     /**
      * Logs request details if logging is enabled
@@ -222,6 +403,7 @@ export class HttpClient {
         endpoint,
         method,
         headers,
+        errorMode: _errorMode,
         ...otherProps
     }: RequestConfig<TBody>) => {
         const {
@@ -252,18 +434,26 @@ export class HttpClient {
      * Makes an HTTP request with the given configuration
      * @returns Promise resolving to [error, response] tuple
      */
-    async #request<
-        TResponse,
-        TBody = unknown,
-        TError extends ErrorType = ErrorType,
-    >(requestConfig: RequestConfig<TBody>) {
+    async #request<TResponse, TBody = unknown>(
+        requestConfig: RequestConfig<TBody>
+    ) {
+        const errorMode = requestConfig.errorMode ?? "legacy";
         const config = this.#mergeConfig<TBody>(requestConfig);
 
-        return tryCatchHttp<TResponse, TError>(async () => {
+        if (errorMode === "modern") {
+            return tryCatchHttp<TResponse, unknown>(async () => {
+                this.#logRequest(config);
+                const response: AxiosResponse<TResponse> =
+                    await this.#axios.request<TResponse>(config);
+                return response.data;
+            }, { errorMode: "modern" })();
+        }
+
+        return tryCatchHttp<TResponse, ErrorType>(async () => {
             this.#logRequest(config);
             const response: AxiosResponse<TResponse> =
                 await this.#axios.request<TResponse>(config);
             return response.data;
-        })();
+        }, { errorMode: "legacy" })();
     }
 }
