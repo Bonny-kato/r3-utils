@@ -20,7 +20,6 @@ export const actionError = <
 ) => {
     return dataWithError<ActionErrorType<TPayload, TError>>(
         [error, payload],
-        error.message,
-        { status: error.status }
+        error.message
     );
 };

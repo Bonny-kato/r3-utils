@@ -13,7 +13,7 @@ The Utils module provides a collection of utility functions and helpers for comm
 Throws a custom error with the provided message and status code.
 
 ```typescript
-function throwCustomError(message: string, statusCode: number): never
+function throwCustomError(message: string, statusCode: number): never;
 ```
 
 #### throwError
@@ -21,7 +21,7 @@ function throwCustomError(message: string, statusCode: number): never
 Throws a JSON-formatted error response.
 
 ```typescript
-function throwError(error: ErrorType): never
+function throwError(error: ErrorType): never;
 ```
 
 #### safeRedirect
@@ -29,7 +29,7 @@ function throwError(error: ErrorType): never
 Safely redirects the user to the specified URL after validating it.
 
 ```typescript
-function safeRedirect(to: RedirectUrl, init?: number | ResponseInit): Response
+function safeRedirect(to: RedirectUrl, init?: number | ResponseInit): Response;
 ```
 
 #### parseErrorResponse
@@ -37,7 +37,7 @@ function safeRedirect(to: RedirectUrl, init?: number | ResponseInit): Response
 Parses error responses from API calls into a standardized format.
 
 ```typescript
-function parseErrorResponse(error: unknown): ErrorType
+function parseErrorResponse(error: unknown): ErrorType;
 ```
 
 #### getErrorMessage
@@ -45,7 +45,7 @@ function parseErrorResponse(error: unknown): ErrorType
 Extracts a human-readable error message from various error types.
 
 ```typescript
-function getErrorMessage(error: unknown): string
+function getErrorMessage(error: unknown): string;
 ```
 
 #### isCustomErrorResponse
@@ -53,7 +53,7 @@ function getErrorMessage(error: unknown): string
 Checks if an error is a custom error response.
 
 ```typescript
-function isCustomErrorResponse(error: unknown): boolean
+function isCustomErrorResponse(error: unknown): boolean;
 ```
 
 #### tryCatch
@@ -62,8 +62,8 @@ A utility function that wraps async operations to handle errors in a type-safe w
 
 ```typescript
 function tryCatch<T, E = Error>(
-  promise: Promise<T>
-): Promise<[E, null] | [null, T]>
+    promise: Promise<T>
+): Promise<[E, null] | [null, T]>;
 ```
 
 ### Environment Validation
@@ -74,9 +74,9 @@ Validates environment variables against a schema.
 
 ```typescript
 function validateEnv<T extends z.ZodType>(
-  schema: T,
-  options?: EnvValidatorOptions
-): z.infer<T>
+    schema: T,
+    options?: EnvValidatorOptions
+): z.infer<T>;
 ```
 
 #### createEnvSchema
@@ -84,7 +84,9 @@ function validateEnv<T extends z.ZodType>(
 Helper function to create a basic schema with common validation patterns.
 
 ```typescript
-function createEnvSchema<T extends CreateEnvSchema>(envVars: T): z.ZodType<InferredType>
+function createEnvSchema<T extends CreateEnvSchema>(
+    envVars: T
+): z.ZodType<InferredType>;
 ```
 
 #### requiredIn, requiredInProduction, requiredInDevelopment, requiredInProdAndDev
@@ -92,34 +94,33 @@ function createEnvSchema<T extends CreateEnvSchema>(envVars: T): z.ZodType<Infer
 Functions to specify in which environments a variable is required.
 
 ```typescript
-function requiredIn(environments: Environment[]): z.RefinementEffect<string | undefined | boolean>["refinement"]
+function requiredIn(
+    environments: Environment[]
+): z.RefinementEffect<string | undefined | boolean>["refinement"];
 ```
 
 ### Formatting
 
 #### formatAmount
 
-Formats a given monetary amount into a human-readable string with currency notation and appropriate abbreviations.
+Formats a given monetary amount into a human-readable string with currency notation and optional abbreviations.
 
 ```typescript
-function formatAmount(
-  amount?: number,
-  options: FormatOptions = {}
-): string
+function formatAmount(amount?: number, options: FormatOptions = {}): string;
 
 interface FormatOptions {
-  /** Currency code (e.g. "TZS", "USD") */
-  currency?: string;
-  /** Locale string (e.g. "en-US") */
-  locale?: string;
-  /** Maximum number of decimal places to display */
-  maximumFractionDigits?: number;
-  /** Minimum number of decimal places to display */
-  minimumFractionDigits?: number;
-  /** Whether to abbreviate large numbers (e.g. 1M, 1B) */
-  showAbbreviation?: boolean;
-  /** Whether to show currency symbol/code */
-  showCurrency?: boolean;
+    /** Currency code (e.g. "TZS", "USD") */
+    currency?: string;
+    /** Locale string (e.g. "en-US") */
+    locale?: string;
+    /** Maximum number of decimal places to display */
+    maximumFractionDigits?: number;
+    /** Minimum number of decimal places to display */
+    minimumFractionDigits?: number;
+    /** Whether to abbreviate large numbers (e.g. 1M, 1B) */
+    showAbbreviation?: boolean;
+    /** Whether to show currency symbol/code */
+    showCurrency?: boolean;
 }
 ```
 
@@ -128,7 +129,7 @@ interface FormatOptions {
 Calculates the duration from now to a given date.
 
 ```typescript
-function getDurationFromNow(date: Date | string): string
+function getDurationFromNow(date: Date | string): string;
 ```
 
 #### generateAvatar
@@ -136,7 +137,7 @@ function getDurationFromNow(date: Date | string): string
 Generates an avatar URL based on a name or identifier.
 
 ```typescript
-function generateAvatar(name: string, options?: AvatarOptions): string
+function generateAvatar(name: string, options?: AvatarOptions): string;
 ```
 
 ### Data Manipulation
@@ -147,10 +148,10 @@ Adds an item to an array only if a condition is met.
 
 ```typescript
 function conditionallyAddToArray<T>(
-  condition: boolean,
-  item: T,
-  array: T[] = []
-): T[]
+    condition: boolean,
+    item: T,
+    array: T[] = []
+): T[];
 ```
 
 #### removeNullish
@@ -158,7 +159,7 @@ function conditionallyAddToArray<T>(
 Removes nullish values (null or undefined) from an object.
 
 ```typescript
-function removeNullish<T extends Record<string, unknown>>(obj: T): Partial<T>
+function removeNullish<T extends Record<string, unknown>>(obj: T): Partial<T>;
 ```
 
 #### getRequestFormData
@@ -166,7 +167,7 @@ function removeNullish<T extends Record<string, unknown>>(obj: T): Partial<T>
 Extracts form data from a request.
 
 ```typescript
-function getRequestFormData(request: Request): Promise<FormData>
+function getRequestFormData(request: Request): Promise<FormData>;
 ```
 
 #### parseRequestData
@@ -174,7 +175,7 @@ function getRequestFormData(request: Request): Promise<FormData>
 Extracts data from a request and returns it as a typed object. Automatically handles both JSON and multipart/form-data content types.
 
 ```typescript
-function parseRequestData<TData>(request: Request): Promise<TData>
+function parseRequestData<TData>(request: Request): Promise<TData>;
 ```
 
 ### URL and Query Parameters
@@ -185,8 +186,8 @@ Parses URL search parameters into a typed object.
 
 ```typescript
 function parseSearchParams<T extends Record<string, string | number | boolean>>(
-  searchParams: URLSearchParams
-): ParsedSearchParams<T>
+    searchParams: URLSearchParams
+): ParsedSearchParams<T>;
 ```
 
 #### serializeQueryParams
@@ -195,8 +196,8 @@ Serializes an object into URL search parameters.
 
 ```typescript
 function serializeQueryParams(
-  params: Record<string, string | number | boolean | undefined>
-): URLSearchParams
+    params: Record<string, string | number | boolean | undefined>
+): URLSearchParams;
 ```
 
 ### Development Utilities
@@ -206,7 +207,7 @@ function serializeQueryParams(
 Simulates network latency for testing purposes.
 
 ```typescript
-function fakeNetwork(delay?: number): Promise<void>
+function fakeNetwork(delay?: number): Promise<void>;
 ```
 
 #### checkIsDevMode
@@ -214,7 +215,7 @@ function fakeNetwork(delay?: number): Promise<void>
 Checks if the application is running in development mode.
 
 ```typescript
-function checkIsDevMode(): boolean
+function checkIsDevMode(): boolean;
 ```
 
 ## Usage Examples
@@ -222,76 +223,78 @@ function checkIsDevMode(): boolean
 ### Error Handling
 
 ```typescript
-import { throwCustomError, safeRedirect, tryCatch } from 'r3-utils/utils';
+import { throwCustomError, safeRedirect, tryCatch } from "r3-utils/utils";
 
 // In an action function
 export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const email = formData.get('email');
+    const formData = await request.formData();
+    const email = formData.get("email");
 
-  if (!email) {
-    // Throw a custom error with a 400 status code
-    throwCustomError('Email is required', 400);
-  }
+    if (!email) {
+        // Throw a custom error with a 400 status code
+        throwCustomError("Email is required", 400);
+    }
 
-  // Process the form...
+    // Process the form...
 
-  // Safely redirect to a success page
-  return safeRedirect('/success');
+    // Safely redirect to a success page
+    return safeRedirect("/success");
 }
 
 // Using tryCatch for error handling
 async function fetchUserData(userId: string) {
-  const [error, userData] = await tryCatch(
-    fetch(`https://api.example.com/users/${userId}`).then(res => res.json())
-  );
+    const [error, userData] = await tryCatch(
+        fetch(`https://api.example.com/users/${userId}`).then((res) =>
+            res.json()
+        )
+    );
 
-  if (error) {
-    console.error('Failed to fetch user data:', error.message);
-    return null;
-  }
+    if (error) {
+        console.error("Failed to fetch user data:", error.message);
+        return null;
+    }
 
-  return userData;
+    return userData;
 }
 
 // Using tryCatch with custom error type
 interface ApiError {
-  code: string;
-  message: string;
-  details: string[];
+    code: string;
+    message: string;
+    details: string[];
 }
 
 async function updateUserProfile(userId: string, data: object) {
-  const [error, response] = await tryCatch<Response, ApiError>(
-    fetch(`https://api.example.com/users/${userId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-  );
+    const [error, response] = await tryCatch<Response, ApiError>(
+        fetch(`https://api.example.com/users/${userId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        })
+    );
 
-  if (error) {
-    // TypeScript knows error is ApiError here
-    console.error(`Error ${error.code}: ${error.message}`);
-    error.details.forEach(detail => console.error(`- ${detail}`));
-    return false;
-  }
+    if (error) {
+        // TypeScript knows error is ApiError here
+        console.error(`Error ${error.code}: ${error.message}`);
+        error.details.forEach((detail) => console.error(`- ${detail}`));
+        return false;
+    }
 
-  return response.ok;
+    return response.ok;
 }
 ```
 
 ### Environment Validation
 
 ```typescript
-import { createEnvSchema, validateEnv } from 'r3-utils/utils';
+import { createEnvSchema, validateEnv } from "r3-utils/utils";
 
 // Create a schema for your environment variables
 const envSchema = createEnvSchema({
-  API_URL: { requiredIn: ['production', 'development'] },
-  DEBUG: { type: 'boolean', default: false },
-  PORT: { type: 'number', default: 3000 },
-  API_KEY: { requiredIn: ['production'] },
+    API_URL: { requiredIn: ["production", "development"] },
+    DEBUG: { type: "boolean", default: false },
+    PORT: { type: "number", default: 3000 },
+    API_KEY: { requiredIn: ["production"] },
 });
 
 // Validate environment variables
@@ -300,50 +303,49 @@ const env = validateEnv(envSchema);
 // Use the validated and typed environment variables
 console.log(`Server running on port ${env.PORT}`);
 if (env.DEBUG) {
-  console.log(`API URL: ${env.API_URL}`);
+    console.log(`API URL: ${env.API_URL}`);
 }
 ```
 
 ### Formatting
 
 ```typescript
-import { formatAmount } from 'r3-utils/utils';
+import { formatAmount } from "r3-utils/utils";
 
 // Format a large amount with currency and abbreviation
 const formattedPrice = formatAmount(1500000, {
-  currency: 'TZS',
-  showCurrency: true,
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-  showAbbreviation: true
+    currency: "TZS",
+    showCurrency: true,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    showAbbreviation: true,
 });
 // Output: "TZS 1.50 M"
 
 // Format without currency
 const formattedAmount = formatAmount(1500000, {
-  showCurrency: false,
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-  showAbbreviation: true
+    showCurrency: false,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
 });
-// Output: "2 M"
+// Output: "1,500,000"
 
 // Format without abbreviation
 const fullAmount = formatAmount(1500000, {
-  currency: 'TZS',
-  showCurrency: true,
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-  showAbbreviation: false
+    currency: "TZS",
+    showCurrency: true,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    showAbbreviation: false,
 });
 // Output: "TZS 1,500,000.00"
 
 // Format with custom locale and currency
 const usdAmount = formatAmount(1500000, {
-  currency: 'USD',
-  locale: 'en-US',
-  showCurrency: true,
-  showAbbreviation: true
+    currency: "USD",
+    locale: "en-US",
+    showCurrency: true,
+    showAbbreviation: true,
 });
 // Output: "$1.5 M"
 ```
@@ -351,31 +353,31 @@ const usdAmount = formatAmount(1500000, {
 ### Data Manipulation
 
 ```typescript
-import { 
-  conditionallyAddToArray, 
-  removeNullish, 
-  parseRequestData 
-} from 'r3-utils/utils';
+import {
+    conditionallyAddToArray,
+    removeNullish,
+    parseRequestData,
+} from "r3-utils/utils";
 
 // Add an item to an array only if a condition is met
-const isAdmin = user.role === 'admin';
+const isAdmin = user.role === "admin";
 const menuItems = [
-  { name: 'Dashboard', url: '/dashboard' },
-  { name: 'Profile', url: '/profile' },
+    { name: "Dashboard", url: "/dashboard" },
+    { name: "Profile", url: "/profile" },
 ];
 
 const adminMenuItems = conditionallyAddToArray(
-  isAdmin,
-  { name: 'Admin Panel', url: '/admin' },
-  menuItems
+    isAdmin,
+    { name: "Admin Panel", url: "/admin" },
+    menuItems
 );
 
 // Remove nullish values from an object
 const userInput = {
-  name: 'John',
-  email: 'john@example.com',
-  phone: null,
-  address: undefined,
+    name: "John",
+    email: "john@example.com",
+    phone: null,
+    address: undefined,
 };
 
 const cleanInput = removeNullish(userInput);
@@ -383,25 +385,27 @@ const cleanInput = removeNullish(userInput);
 
 // Using parseRequestData in a server action or API route
 async function handleFormSubmission(request: Request) {
-  // Automatically handles both JSON and multipart/form-data
-  interface UserFormData {
-    name: string;
-    email: string;
-    profileImage?: File;
-  }
+    // Automatically handles both JSON and multipart/form-data
+    interface UserFormData {
+        name: string;
+        email: string;
+        profileImage?: File;
+    }
 
-  const userData = await parseRequestData<UserFormData>(request);
+    const userData = await parseRequestData<UserFormData>(request);
 
-  // Now you can use the typed data
-  console.log(`Processing submission for ${userData.name} (${userData.email})`);
+    // Now you can use the typed data
+    console.log(
+        `Processing submission for ${userData.name} (${userData.email})`
+    );
 
-  if (userData.profileImage) {
-    // Handle file upload
-    await uploadProfileImage(userData.profileImage);
-  }
+    if (userData.profileImage) {
+        // Handle file upload
+        await uploadProfileImage(userData.profileImage);
+    }
 
-  // Process the data...
-  return { success: true };
+    // Process the data...
+    return { success: true };
 }
 ```
 
@@ -460,7 +464,6 @@ function SearchResults() {
 
 Many of these utilities are designed to work seamlessly with React Router, especially the error handling and redirection utilities. Make sure you have React Router installed and properly set up in your application to use these utilities effectively.
 
-
 ## Env Validator Imports
 
 The env-validator utilities are re-exported from the main utils entry for stable public imports. Internal files live under `src/utils/env-validator`, but you should import from the public module entry:
@@ -468,16 +471,16 @@ The env-validator utilities are re-exported from the main utils entry for stable
 ```ts
 // Recommended public imports (unchanged)
 import {
-  validateEnv,
-  createEnvSchema,
-  requiredIn,
-  requiredInDevelopment,
-  requiredInProduction,
-  requiredInProdAndDev,
-  type Environment,
-  type EnvSchema,
-  type EnvValidatorOptions,
-} from 'r3-utils/utils';
+    validateEnv,
+    createEnvSchema,
+    requiredIn,
+    requiredInDevelopment,
+    requiredInProduction,
+    requiredInProdAndDev,
+    type Environment,
+    type EnvSchema,
+    type EnvValidatorOptions,
+} from "r3-utils/utils";
 ```
 
 This preserves tree-shaking and avoids relying on internal paths.
