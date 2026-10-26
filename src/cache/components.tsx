@@ -12,7 +12,10 @@ import {
 import { type LoaderFunction, useFetcher } from "react-router";
 import { useEventListener } from "~/hooks";
 import { CacheClient, type CacheEntryType } from "./cache-client";
-import { unwrapNestedPromise, type UnwrapNestedPromise, } from "./unwrap-nested-promise";
+import {
+    unwrapNestedPromise,
+    type UnwrapNestedPromise,
+} from "./unwrap-nested-promise";
 
 ////////////////////////////////////////////////////////////////////////////////
 //#region useFetch hook
@@ -182,7 +185,7 @@ export const useFetch = <T extends LoaderFunction>(
                 return setData(data);
             }
         },
-        [cacheKeyToUse]
+        [$cache, cacheKeyToUse, options.ttl, shouldCache]
     );
 
     /**
@@ -206,6 +209,8 @@ export const useFetch = <T extends LoaderFunction>(
      */
     const fetchDataFromServer = useCallback(
         async (isInitialLoad = false) => {
+            if (!shouldFetch) return;
+
             if (!isInitialLoad) {
                 setIsFetching(true);
             }
@@ -216,17 +221,18 @@ export const useFetch = <T extends LoaderFunction>(
                 setError(e);
             }
         },
-        [load, resourceToFetchFrom]
+        [load, resourceToFetchFrom, shouldFetch]
     );
 
     //--------------------------------------------------------------
 
     useEffect(() => {
         if (shouldFetch) {
-            setIsLoading(!cachedData);
-            fetchDataFromServer(!cachedData).then();
+            const hasCachedData = Boolean($cache.get(cacheKeyToUse));
+            setIsLoading(!hasCachedData);
+            void fetchDataFromServer(!hasCachedData);
         }
-    }, [resourceToFetchFrom, shouldFetch, fetchDataFromServer]);
+    }, [$cache, cacheKeyToUse, shouldFetch, fetchDataFromServer]);
 
     //--------------------------------------------------------------
 
@@ -238,7 +244,7 @@ export const useFetch = <T extends LoaderFunction>(
     useEffect(() => {
         if (fetcherData) {
             const dataFromServer = fetcherData as LoaderData;
-            updateDataStateAndCache(dataFromServer).then();
+            void updateDataStateAndCache(dataFromServer);
         }
     }, [fetcherData, updateDataStateAndCache]);
 
@@ -249,7 +255,7 @@ export const useFetch = <T extends LoaderFunction>(
     ////////////////////////////////////////////////////////////////////////////////
 
     useEventListener("focus", () => fetchDataFromServer(), {
-        disabled: !(options?.fetchOnFocus ?? true) || isLoading,
+        disabled: !shouldFetch || !(options?.fetchOnFocus ?? true) || isLoading,
     });
 
     useEventListener(
@@ -259,7 +265,7 @@ export const useFetch = <T extends LoaderFunction>(
             await fetchDataFromServer(true);
         },
         {
-            disabled: !(options?.fetchOnReconnect ?? true),
+            disabled: !shouldFetch || !(options?.fetchOnReconnect ?? true),
         }
     );
 
@@ -300,7 +306,7 @@ const useCacheObserver = (key: string) => {
     useEffect(() => {
         $cache.addObserver(key);
         return () => $cache.removeObserver(key);
-    }, [key]);
+    }, [$cache, key]);
 };
 //endregion
 

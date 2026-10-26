@@ -1,4 +1,4 @@
-import { throwCustomError, throwError } from "~/utils";
+import { throwCustomError } from "~/utils";
 import { checkIfAuthorized } from "./access-control-helpers";
 import { generateUserAccessControlConfig } from "./generate-user-access-control-config";
 import { AuthUser, RequireAccessOptions, UserAccessControl } from "./type";
