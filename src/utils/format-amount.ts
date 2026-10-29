@@ -30,7 +30,7 @@ interface FormatOptions {
  * formatAmount(1234.56) // Returns "TZS 1,235"
  *
  * // With abbreviation
- * formatAmount(1234567) // Returns "TZS 1 M"
+ * formatAmount(1234567, { showAbbreviation: true }) // Returns "TZS 1 M"
  *
  * // Custom currency and locale
  * formatAmount(1234.56, {
@@ -54,7 +54,7 @@ export const formatAmount = (
         locale = "en-US",
         maximumFractionDigits = 0,
         minimumFractionDigits = 0,
-        showAbbreviation = true,
+        showAbbreviation = false,
         showCurrency = true,
     } = options;
 
@@ -62,11 +62,11 @@ export const formatAmount = (
 
     const formatter = new Intl.NumberFormat(locale, {
         ...(showCurrency && {
-            style: "currency",
             currency,
+            style: "currency",
         }),
-        minimumFractionDigits,
         maximumFractionDigits,
+        minimumFractionDigits,
     });
 
     if (showAbbreviation) {
